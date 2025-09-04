@@ -1,0 +1,24 @@
+{
+  "name": "@bmad/dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p .",
+    "start": "node dist/index.js",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "type-check": "tsc --noEmit",
+    "test": "echo 'test placeholder - jest setup needed'",
+    "test:coverage": "echo 'coverage placeholder - jest setup needed'",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "@typescript-eslint/eslint-plugin": "^6.13.1",
+    "@typescript-eslint/parser": "^6.13.1",
+    "eslint": "^8.54.0"
+  }
+}

@@ -1,0 +1,160 @@
+// BMAD Complete Prisma Schema - Laura 01 System
+// Based on ERD specification from PRD v2.0
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// USUARIOS (Users) - Construction site supervisors and managers
+model Usuario {
+  id          String  @id @default(cuid())
+  nome        String
+  cargo       String
+  whatsapp    String  @unique
+  permissions Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relationships
+  pedidos     Pedido[]
+  obrasAsFiscal Obra[] @relation("FiscalObra")
+  
+  @@map("usuarios")
+}
+
+// OBRAS (Construction Sites) - Projects where materials are needed
+model Obra {
+  id          String  @id @default(cuid())
+  nome        String
+  endereco    String
+  coordenadas Json?   // PostGIS point data as JSON
+  fiscalId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relationships
+  fiscal      Usuario @relation("FiscalObra", fields: [fiscalId], references: [id])
+  pedidos     Pedido[]
+  
+  @@map("obras")
+}
+
+// PEDIDOS (Material Requests) - Core entity for quotation process
+model Pedido {
+  id            String    @id // Format: PED-OBRA-YYYY-XXX
+  obraId        String
+  fiscalId      String
+  descricao     String
+  status        StatusPedido @default(PENDENTE)
+  valorAprovado Decimal?  @db.Decimal(10,2)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relationships
+  obra          Obra      @relation(fields: [obraId], references: [id])
+  fiscal        Usuario   @relation(fields: [fiscalId], references: [id])
+  orcamentos    Orcamento[]
+  pagamento     Pagamento?
+  
+  @@map("pedidos")
+}
+
+// FORNECEDORES (Suppliers) - Companies that provide materials
+model Fornecedor {
+  id          String    @id @default(cuid())
+  nome        String
+  cnpj        String    @unique
+  whatsapp    String    @unique
+  coordenadas Json?     // PostGIS point data as JSON
+  categoria   CategoriaFornecedor @default(D)
+  ativo       Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relationships
+  orcamentos  Orcamento[]
+  scores      Score[]
+  
+  @@map("fornecedores")
+}
+
+// SCORES (Supplier Performance Scores) - ML-based supplier ranking
+model Score {
+  id                  String    @id @default(cuid())
+  fornecedorId        String
+  responseTimeScore   Float     @default(0.0)
+  acceptanceRateScore Float     @default(0.0)
+  deliveryScore       Float     @default(0.0)
+  priceScore          Float     @default(0.0)
+  qualityScore        Float     @default(0.0)
+  totalScore          Float     @default(0.0)
+  calculatedAt        DateTime  @default(now())
+  
+  // Relationships
+  fornecedor          Fornecedor @relation(fields: [fornecedorId], references: [id])
+  
+  @@map("scores")
+}
+
+// ORCAMENTOS (Quotations) - Supplier responses to material requests
+model Orcamento {
+  id             String    @id @default(cuid())
+  pedidoId       String
+  fornecedorId   String
+  valorUnitario  Decimal   @db.Decimal(10,2)
+  valorTotal     Decimal   @db.Decimal(10,2)
+  prazoEntrega   DateTime
+  condicoes      Json?     // Terms and conditions as JSON
+  aprovado       Boolean   @default(false)
+  receivedAt     DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  
+  // Relationships
+  pedido         Pedido    @relation(fields: [pedidoId], references: [id])
+  fornecedor     Fornecedor @relation(fields: [fornecedorId], references: [id])
+  
+  @@map("orcamentos")
+}
+
+// PAGAMENTOS (Payments) - Payment confirmations and receipts
+model Pagamento {
+  id              String   @id @default(cuid())
+  pedidoId        String   @unique
+  comprovanteUrl  String?
+  valor           Decimal  @db.Decimal(10,2)
+  paidAt          DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relationships
+  pedido          Pedido   @relation(fields: [pedidoId], references: [id])
+  
+  @@map("pagamentos")
+}
+
+// Enums
+enum StatusPedido {
+  PENDENTE
+  COTANDO
+  APROVADO
+  PAGO
+  ENTREGUE
+  CANCELADO
+  
+  @@map("status_pedido")
+}
+
+enum CategoriaFornecedor {
+  A // Premium suppliers
+  B // Good suppliers
+  C // Average suppliers
+  D // New/Unrated suppliers
+  
+  @@map("categoria_fornecedor")
+}
