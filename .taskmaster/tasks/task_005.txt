@@ -1,0 +1,11 @@
+# Task ID: 5
+# Title: Approval Workflow
+# Status: pending
+# Dependencies: None
+# Priority: medium
+# Description: Implement hierarchical approval process based on purchase values and rules.
+# Details:
+Backend: Define approval rules (e.g., auto-approve < R$5000, fiscal for R$5000-50000, directoria > R$50000). Models for Approvals (id, quotation_id, approver_id, status, justification). Send notifications. Frontend: Dashboard for pending approvals, forms for decisions. Pseudo-code: Backend - const approveQuotation = async (quotationId, userId) => { const value = await getQuotationValue(quotationId); if (value <= 5000) { // Auto-approve } else { // Assign to next level } }; Frontend - Use React components for approval lists.
+
+# Test Strategy:
+Test approval rules with various values, notification sending. Integration tests for workflow transitions.

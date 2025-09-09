@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "task-master-ai": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "task-master-ai",
+        "mcp"
+      ],
+      "disabled": false
+    },
+    "BMAD-METHOD Docs": {
+      "url": "https://gitmcp.io/bmad-code-org/BMAD-METHOD"
+    },
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "disabled": false
+    }
+  }
+}

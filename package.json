@@ -22,8 +22,14 @@
     "docker:down": "docker compose down -v",
     "docker:logs": "docker compose logs -f --tail=100",
     "docker:ps": "docker compose ps",
-    "seed": "npm run --workspace packages/prisma seed",
-    "db:reset": "npm run --workspace packages/prisma seed:reset"
+    "prisma:generate": "npx turbo run generate --filter=@bmad/prisma",
+    "prisma:migrate": "npx turbo run migrate --filter=@bmad/prisma",
+    "prisma:studio": "npx turbo run studio --filter=@bmad/prisma",
+    "seed": "npx turbo run seed --filter=@bmad/prisma",
+    "db:reset": "npx turbo run reset --filter=@bmad/prisma",
+    "check-integrity": "node scripts/validate-integrity.js",
+    "validate": "npm run check-integrity",
+    "setup": "bash scripts/setup.sh"
   },
   "engines": {
     "node": ">=18.18.0"
@@ -41,6 +47,7 @@
     "husky": "^8.0.3",
     "lint-staged": "^15.1.0",
     "prettier": "^3.1.0",
+    "tsx": "^4.20.5",
     "turbo": "^1.11.2",
     "typescript": "^5.3.2"
   }

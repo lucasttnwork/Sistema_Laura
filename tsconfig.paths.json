@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@bmad/*": ["packages/*/src"],
+      "@bmad/api": ["apps/api/src"],
+      "@bmad/dashboard": ["apps/dashboard/src"],
+      "@bmad/worker": ["apps/worker/src"],
+      "@/*": ["apps/*/src/*"]
+    }
+  }
+}

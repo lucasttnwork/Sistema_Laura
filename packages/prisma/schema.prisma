@@ -1,160 +1,206 @@
-// BMAD Complete Prisma Schema - Laura 01 System
-// Based on ERD specification from PRD v2.0
+// Prisma schema for BMAD - Laura System
+generator client {
+  provider = "prisma-client-js"
+}
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
+// User model for authentication
+model User {
+  id            String    @id @default(cuid())
+  nome          String
+  cargo         String
+  whatsapp      String    @unique
+  password      String
+  loginAttempts Int       @default(0)
+  lockedUntil   DateTime?
+  lastLogin     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  cotações         Cotacao[]
+  aprovacoes       Aprovacao[]
+  notificacoes     Notificacao[]
+  mensagens        Mensagem[]
+  refreshTokens    RefreshToken[]
+
+  @@map("users")
 }
 
-// USUARIOS (Users) - Construction site supervisors and managers
-model Usuario {
-  id          String  @id @default(cuid())
-  nome        String
-  cargo       String
-  whatsapp    String  @unique
-  permissions Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  // Relationships
-  pedidos     Pedido[]
-  obrasAsFiscal Obra[] @relation("FiscalObra")
-  
-  @@map("usuarios")
-}
-
-// OBRAS (Construction Sites) - Projects where materials are needed
+// Obra (Construction Project) model
 model Obra {
-  id          String  @id @default(cuid())
+  id          String   @id @default(cuid())
   nome        String
-  endereco    String
-  coordenadas Json?   // PostGIS point data as JSON
   fiscalId    String
+  status      String   @default("ativo")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
-  // Relationships
-  fiscal      Usuario @relation("FiscalObra", fields: [fiscalId], references: [id])
-  pedidos     Pedido[]
-  
+
+  // Relations
+  solicitacoes Solicitacao[]
+  cotações     Cotacao[]
+
   @@map("obras")
 }
 
-// PEDIDOS (Material Requests) - Core entity for quotation process
-model Pedido {
-  id            String    @id // Format: PED-OBRA-YYYY-XXX
-  obraId        String
-  fiscalId      String
-  descricao     String
-  status        StatusPedido @default(PENDENTE)
-  valorAprovado Decimal?  @db.Decimal(10,2)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
-  // Relationships
-  obra          Obra      @relation(fields: [obraId], references: [id])
-  fiscal        Usuario   @relation(fields: [fiscalId], references: [id])
-  orcamentos    Orcamento[]
-  pagamento     Pagamento?
-  
-  @@map("pedidos")
+// Solicitação (Request) model for material requests
+model Solicitacao {
+  id          String   @id @default(cuid())
+  obraId      String
+  item        String
+  quantidade  String
+  especificacoes String?
+  status      String   @default("pendente")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  obra        Obra         @relation(fields: [obraId], references: [id])
+  cotações    Cotacao[]
+
+  @@map("solicitacoes")
 }
 
-// FORNECEDORES (Suppliers) - Companies that provide materials
+// Fornecedor (Supplier) model
 model Fornecedor {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   nome        String
-  cnpj        String    @unique
-  whatsapp    String    @unique
-  coordenadas Json?     // PostGIS point data as JSON
-  categoria   CategoriaFornecedor @default(D)
-  ativo       Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  // Relationships
-  orcamentos  Orcamento[]
-  scores      Score[]
-  
+  whatsapp    String   @unique
+  email       String?
+  categoria   String
+  status      String   @default("ativo")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  cotações    Cotacao[]
+
   @@map("fornecedores")
 }
 
-// SCORES (Supplier Performance Scores) - ML-based supplier ranking
-model Score {
-  id                  String    @id @default(cuid())
-  fornecedorId        String
-  responseTimeScore   Float     @default(0.0)
-  acceptanceRateScore Float     @default(0.0)
-  deliveryScore       Float     @default(0.0)
-  priceScore          Float     @default(0.0)
-  qualityScore        Float     @default(0.0)
-  totalScore          Float     @default(0.0)
-  calculatedAt        DateTime  @default(now())
-  
-  // Relationships
-  fornecedor          Fornecedor @relation(fields: [fornecedorId], references: [id])
-  
-  @@map("scores")
+// Cotação (Quotation) model
+model Cotacao {
+  id            String   @id @default(cuid())
+  solicitacaoId String
+  fornecedorId  String
+  userId        String
+  obraId        String
+  valorUnitario Float
+  valorTotal    Float
+  prazo         String
+  pagamento     String
+  status        String   @default("enviada")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  solicitacao   Solicitacao @relation(fields: [solicitacaoId], references: [id])
+  fornecedor    Fornecedor  @relation(fields: [fornecedorId], references: [id])
+  user          User        @relation(fields: [userId], references: [id])
+  obra          Obra        @relation(fields: [obraId], references: [id])
+  historicos    Historico[]
+  aprovacoes    Aprovacao[]
+
+  @@map("cotacoes")
 }
 
-// ORCAMENTOS (Quotations) - Supplier responses to material requests
-model Orcamento {
-  id             String    @id @default(cuid())
-  pedidoId       String
-  fornecedorId   String
-  valorUnitario  Decimal   @db.Decimal(10,2)
-  valorTotal     Decimal   @db.Decimal(10,2)
-  prazoEntrega   DateTime
-  condicoes      Json?     // Terms and conditions as JSON
-  aprovado       Boolean   @default(false)
-  receivedAt     DateTime  @default(now())
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  
-  // Relationships
-  pedido         Pedido    @relation(fields: [pedidoId], references: [id])
-  fornecedor     Fornecedor @relation(fields: [fornecedorId], references: [id])
-  
-  @@map("orcamentos")
+// Histórico (History) model for quotation tracking
+model Historico {
+  id          String   @id @default(cuid())
+  cotacaoId   String
+  acao        String
+  descricao   String
+  createdAt   DateTime @default(now())
+
+  // Relations
+  cotacao     Cotacao  @relation(fields: [cotacaoId], references: [id])
+
+  @@map("historicos")
 }
 
-// PAGAMENTOS (Payments) - Payment confirmations and receipts
-model Pagamento {
-  id              String   @id @default(cuid())
-  pedidoId        String   @unique
-  comprovanteUrl  String?
-  valor           Decimal  @db.Decimal(10,2)
-  paidAt          DateTime @default(now())
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  // Relationships
-  pedido          Pedido   @relation(fields: [pedidoId], references: [id])
-  
-  @@map("pagamentos")
+// Aprovação (Approval) model
+model Aprovacao {
+  id          String   @id @default(cuid())
+  userId      String
+  cotacaoId   String
+  status      String   @default("pendente")
+  comentario  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id])
+  cotacao     Cotacao  @relation(fields: [cotacaoId], references: [id])
+
+  @@map("aprovacoes")
 }
 
-// Enums
-enum StatusPedido {
-  PENDENTE
-  COTANDO
-  APROVADO
-  PAGO
-  ENTREGUE
-  CANCELADO
-  
-  @@map("status_pedido")
+// Arquivo (File) model for attachments
+model Arquivo {
+  id          String   @id @default(cuid())
+  nome        String
+  tipo        String
+  tamanho     Int
+  caminho     String
+  entidadeId  String   // ID da entidade relacionada (cotacao, solicitacao, etc.)
+  entidadeTipo String  // Tipo da entidade (cotacao, solicitacao, etc.)
+  createdAt   DateTime @default(now())
+
+  @@map("arquivos")
 }
 
-enum CategoriaFornecedor {
-  A // Premium suppliers
-  B // Good suppliers
-  C // Average suppliers
-  D // New/Unrated suppliers
-  
-  @@map("categoria_fornecedor")
+// Refresh Token model for secure token management
+model RefreshToken {
+  id          String   @id @default(cuid())
+  userId      String
+  token       String   @unique
+  expiresAt   DateTime
+  isRevoked   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@map("refresh_tokens")
 }
+
+// Notificação (Notification) model
+model Notificacao {
+  id          String   @id @default(cuid())
+  userId      String
+  titulo      String
+  mensagem    String
+  tipo        String   @default("info")
+  lida        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@map("notificacoes")
+}
+
+// Mensagem WhatsApp (WhatsApp Message) model
+model Mensagem {
+  id                String   @id @default(cuid())
+  numero            String
+  mensagem          String
+  templateId        String?
+  variaveis         String?
+  status            String   @default("enviada")
+  mensagemIdExterno String?
+  dataRecebimento   DateTime?
+  enviadoPorId      String?
+  createdAt         DateTime @default(now())
+
+  // Relations
+  enviadoPor        User?    @relation(fields: [enviadoPorId], references: [id])
+
+  @@map("mensagens")
+}
+
+// Mensagem relation added to User model above

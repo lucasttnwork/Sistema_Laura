@@ -3,22 +3,31 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "dev": "tsx src/index.ts",
-    "build": "tsc -p .",
-    "start": "node dist/index.js",
-    "lint": "eslint src/**/*.ts",
-    "lint:fix": "eslint src/**/*.ts --fix",
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001",
+    "lint": "next lint",
+    "lint:fix": "next lint --fix",
     "type-check": "tsc --noEmit",
-    "test": "echo 'test placeholder - jest setup needed'",
-    "test:coverage": "echo 'coverage placeholder - jest setup needed'",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf .next"
+  },
+  "dependencies": {
+    "@bmad/observability": "workspace:*",
+    "@bmad/shared": "workspace:*",
+    "axios": "^1.6.0",
+    "next": "^14.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2",
-    "@typescript-eslint/eslint-plugin": "^6.13.1",
-    "@typescript-eslint/parser": "^6.13.1",
-    "eslint": "^8.54.0"
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "autoprefixer": "^10.4.0",
+    "eslint": "^8.54.0",
+    "eslint-config-next": "^14.0.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.3.0",
+    "typescript": "^5.9.2"
   }
 }

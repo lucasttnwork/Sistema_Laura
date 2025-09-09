@@ -1,0 +1,11 @@
+# Task ID: 3
+# Title: Works and Supplier Management
+# Status: pending
+# Dependencies: None
+# Priority: medium
+# Description: Develop modules for managing construction works and suppliers, including CRUD operations and categorization.
+# Details:
+Backend: Create Prisma models for Works (id, name, status, fiscal_id) and Suppliers (id, name, category, status, whatsapp_number). Implement REST APIs for CRUD with validation. Frontend: Build interfaces using React components for listing, creating, and editing works/suppliers. Integrate with catalog of materials. Pseudo-code: Backend - const workSchema = z.object({ name: z.string(), status: z.enum(['active', 'inactive']) }); app.post('/works', async (req, res) => { const work = await prisma.work.create({ data: req.body }); res.json(work); }); Frontend - Use React Query for fetching data and Zustand for state.
+
+# Test Strategy:
+Unit tests for API endpoints, integration tests for database operations. Manual testing for UI forms to ensure data validation and CRUD functionality.

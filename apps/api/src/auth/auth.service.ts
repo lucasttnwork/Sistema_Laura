@@ -1,50 +1,36 @@
 import bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client';
-import { JWTService, TokenPair } from './jwt.service';
 import { z } from 'zod';
-import { UserPermissions, UsuarioWithAuth } from './types';
+import { JWTService } from './jwt.service';
 import { getPermissionsByCargo, hasPermission, canApproveValue } from './permissions';
+import { Usuario, AuthResponse, Tokens, UserPermissions } from './types';
 
 const prisma = new PrismaClient();
 
+// Normaliza um telefone para formato E.164 com "+" (supondo que o número já contenha o código do país)
+function normalizePhoneToE164(raw: string): string {
+  const trimmed = (raw || '').trim();
+  const digits = trimmed.replace(/[^\d]/g, '');
+  if (!digits) return '';
+  return `+${digits}`;
+}
+
 // Schemas de validação
 export const LoginSchema = z.object({
-  whatsapp: z.string().regex(/^\+55\d{10,11}$/, 'WhatsApp deve estar no formato +5511999999999'),
+  whatsapp: z
+    .string()
+    .regex(/^\+?[1-9]\d{1,14}$/, 'Número deve estar no formato E.164 (com ou sem "+" de entrada)'),
   password: z.string().min(1, 'Senha é obrigatória'),
 });
 
 export const RegisterSchema = z.object({
   nome: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   cargo: z.string().min(2, 'Cargo é obrigatório'),
-  whatsapp: z.string().regex(/^\+55\d{10,11}$/, 'WhatsApp deve estar no formato +5511999999999'),
+  whatsapp: z
+    .string()
+    .regex(/^\+?[1-9]\d{1,14}$/, 'Número deve estar no formato E.164 (com ou sem "+" de entrada)'),
   password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
 });
-
-export interface LoginRequest {
-  whatsapp: string;
-  password: string;
-}
-
-export interface RegisterRequest {
-  nome: string;
-  cargo: string;
-  whatsapp: string;
-  password: string;
-}
-
-export interface AuthResponse {
-  success: boolean;
-  user?: {
-    id: string;
-    nome: string;
-    cargo: string;
-    whatsapp: string;
-    permissions: any;
-  };
-  tokens?: TokenPair;
-  message?: string;
-  error?: string;
-}
 
 export class AuthService {
   /**
@@ -65,14 +51,15 @@ export class AuthService {
   /**
    * Registrar novo usuário
    */
-  static async register(data: RegisterRequest): Promise<AuthResponse> {
+  static async register(data: any): Promise<AuthResponse> {
     try {
       // Validar dados
       const validData = RegisterSchema.parse(data);
+      const normalizedWhatsapp = normalizePhoneToE164(validData.whatsapp);
 
       // Verificar se usuário já existe
-      const existingUser = await prisma.usuario.findUnique({
-        where: { whatsapp: validData.whatsapp },
+      const existingUser = await prisma.user.findUnique({
+        where: { whatsapp: normalizedWhatsapp },
       });
 
       if (existingUser) {
@@ -85,42 +72,35 @@ export class AuthService {
       // Hash da senha
       const hashedPassword = await this.hashPassword(validData.password);
 
-      // Definir permissões baseadas no cargo
+      // Definir permissões baseadas no cargo (apenas para retorno, não armazenado no DB)
       const permissions = getPermissionsByCargo(validData.cargo);
 
       // Criar usuário
-      const usuario = await prisma.usuario.create({
+      const user = await prisma.user.create({
         data: {
           nome: validData.nome,
           cargo: validData.cargo,
-          whatsapp: validData.whatsapp,
-          permissions: {
-            ...permissions,
-            hashedPassword,
-            createdAt: new Date().toISOString(),
-            lastLogin: null,
-            loginAttempts: 0,
-            lockedUntil: null,
-          },
+          whatsapp: normalizedWhatsapp,
+          password: hashedPassword, // Senha hashada no campo próprio
         },
       });
 
       // Gerar tokens
-      const tokens = await JWTService.generateTokens(usuario);
+      const tokens = await JWTService.generateTokens(user);
 
       return {
         success: true,
         user: {
-          id: usuario.id,
-          nome: usuario.nome,
-          cargo: usuario.cargo,
-          whatsapp: usuario.whatsapp,
-          permissions: permissions,
+          id: user.id,
+          nome: user.nome,
+          cargo: user.cargo,
+          whatsapp: user.whatsapp,
+          permissions: permissions, // Permissões calculadas dinamicamente
         },
         tokens,
         message: 'Usuário registrado com sucesso',
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro no registro:', error);
       return {
         success: false,
@@ -132,17 +112,18 @@ export class AuthService {
   /**
    * Login do usuário
    */
-  static async login(data: LoginRequest): Promise<AuthResponse> {
+  static async login(data: any): Promise<AuthResponse> {
     try {
       // Validar dados
       const validData = LoginSchema.parse(data);
+      const normalizedWhatsapp = normalizePhoneToE164(validData.whatsapp);
 
       // Buscar usuário
-      const usuario = await prisma.usuario.findUnique({
-        where: { whatsapp: validData.whatsapp },
+      const user = await prisma.user.findUnique({
+        where: { whatsapp: normalizedWhatsapp },
       });
 
-      if (!usuario) {
+      if (!user) {
         return {
           success: false,
           error: 'Usuário não encontrado',
@@ -150,9 +131,7 @@ export class AuthService {
       }
 
       // Verificar se conta não está bloqueada
-      const permissions = usuario.permissions as UserPermissions | null;
-      const lockedUntil = permissions?.lockedUntil;
-      if (lockedUntil && new Date() < new Date(lockedUntil)) {
+      if ((user as any).lockedUntil && new Date() < new Date((user as any).lockedUntil)) {
         return {
           success: false,
           error: 'Conta temporariamente bloqueada por tentativas excessivas',
@@ -160,30 +139,20 @@ export class AuthService {
       }
 
       // Verificar senha
-      const hashedPassword = permissions?.hashedPassword;
-      if (!hashedPassword) {
-        return {
-          success: false,
-          error: 'Usuário não possui senha configurada',
-        };
-      }
-
-      const isPasswordValid = await this.verifyPassword(validData.password, hashedPassword);
+      const isPasswordValid = await this.verifyPassword(validData.password, user.password);
 
       if (!isPasswordValid) {
         // Incrementar tentativas de login
-        const loginAttempts = (permissions?.loginAttempts || 0) + 1;
+        const currentAttempts = (user as any).loginAttempts || 0;
+        const loginAttempts = currentAttempts + 1;
         const shouldLock = loginAttempts >= 5;
 
-        await prisma.usuario.update({
-          where: { id: usuario.id },
+        await prisma.user.update({
+          where: { id: user.id },
           data: {
-            permissions: {
-              ...(permissions || {}),
-              loginAttempts,
-              lockedUntil: shouldLock ? new Date(Date.now() + 30 * 60 * 1000).toISOString() : null, // 30 min
-            } as any,
-          },
+            loginAttempts,
+            lockedUntil: shouldLock ? new Date(Date.now() + 30 * 60 * 1000) : null, // 30 min
+          } as any,
         });
 
         return {
@@ -195,34 +164,34 @@ export class AuthService {
       }
 
       // Login bem-sucedido - resetar tentativas e atualizar último login
-      await prisma.usuario.update({
-        where: { id: usuario.id },
+      await prisma.user.update({
+        where: { id: user.id },
         data: {
-          permissions: {
-            ...(permissions || {}),
-            loginAttempts: 0,
-            lockedUntil: null,
-            lastLogin: new Date().toISOString(),
-          } as any,
-        },
+          loginAttempts: 0,
+          lockedUntil: null,
+          lastLogin: new Date(),
+        } as any,
       });
 
+      // Definir permissões baseadas no cargo
+      const permissions = getPermissionsByCargo(user.cargo);
+
       // Gerar tokens
-      const tokens = await JWTService.generateTokens(usuario);
+      const tokens = await JWTService.generateTokens(user);
 
       return {
         success: true,
         user: {
-          id: usuario.id,
-          nome: usuario.nome,
-          cargo: usuario.cargo,
-          whatsapp: usuario.whatsapp,
-          permissions: usuario.permissions,
+          id: user.id,
+          nome: user.nome,
+          cargo: user.cargo,
+          whatsapp: user.whatsapp,
+          permissions: permissions, // Permissões calculadas dinamicamente
         },
         tokens,
         message: 'Login realizado com sucesso',
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro no login:', error);
       return {
         success: false,
@@ -234,7 +203,7 @@ export class AuthService {
   /**
    * Logout do usuário
    */
-  static async logout(refreshToken: string): Promise<{ success: boolean; message: string }> {
+  static async logout(refreshToken: string): Promise<AuthResponse> {
     try {
       const revoked = await JWTService.revokeRefreshToken(refreshToken);
       return {
@@ -256,14 +225,12 @@ export class AuthService {
   static async refreshToken(refreshToken: string): Promise<AuthResponse> {
     try {
       const newTokens = await JWTService.refreshAccessToken(refreshToken);
-
       if (!newTokens) {
         return {
           success: false,
           error: 'Refresh token inválido ou expirado',
         };
       }
-
       return {
         success: true,
         tokens: newTokens,
@@ -286,14 +253,14 @@ export class AuthService {
   /**
    * Verificar se usuário tem permissão específica
    */
-  static hasPermission(userPermissions: any, permission: string): boolean {
-    return hasPermission(userPermissions, permission as any);
+  static hasPermission(userPermissions: UserPermissions | undefined, permission: keyof UserPermissions): boolean {
+    return hasPermission(userPermissions, permission);
   }
 
   /**
    * Verificar se usuário pode aprovar valor
    */
-  static canApproveValue(userPermissions: any, value: number): boolean {
+  static canApproveValue(userPermissions: UserPermissions | undefined, value: number): boolean {
     return canApproveValue(userPermissions, value);
   }
 }

@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Estilos customizados do Kabbatec */
+.kb-display {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.kb-subhead {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  line-height: 1.6;
+}
+
+/* Botões */
+.kb-cta-primary {
+  @apply px-6 py-3 bg-primary text-white font-semibold rounded-full hover:bg-primary/90 transition-colors;
+}
+
+.kb-cta-primary-light {
+  @apply px-6 py-3 bg-white text-background font-semibold rounded-full hover:bg-white/90 transition-colors;
+}
+
+.kb-cta-ghost {
+  @apply px-6 py-3 border border-white/20 text-white font-semibold rounded-full hover:bg-white/10 transition-colors;
+}
+
+/* Cartões */
+.kb-hero-card {
+  @apply relative bg-white/10 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl;
+}
+
+.kb-hero-corner-glow {
+  @apply pointer-events-none absolute -top-px -right-px w-32 h-32 bg-gradient-to-br from-primary/30 to-transparent rounded-full blur-2xl;
+}
+
+.kb-hero-topglow {
+  @apply pointer-events-none absolute -top-px left-1/2 -translate-x-1/2 w-64 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent;
+}
+
+/* Estatísticas */
+.kb-stat {
+  @apply relative bg-white/5 backdrop-blur-md rounded-2xl border border-white/10;
+}
+
+.kb-stat-blue {
+  @apply before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-br before:from-blue-500/20 before:to-blue-600/20 before:pointer-events-none;
+}
+
+.kb-stat-indigo {
+  @apply before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-br before:from-indigo-500/20 before:to-indigo-600/20 before:pointer-events-none;
+}
+
+.kb-stat-violet {
+  @apply before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-br before:from-violet-500/20 before:to-violet-600/20 before:pointer-events-none;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0B0F14;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #7C4DFF;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6B46C1;
+}

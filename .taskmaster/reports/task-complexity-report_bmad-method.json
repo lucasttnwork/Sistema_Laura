@@ -1,0 +1,109 @@
+{
+	"meta": {
+		"generatedAt": "2025-09-08T23:33:09.564Z",
+		"tasksAnalyzed": 12,
+		"totalTasks": 12,
+		"analysisCount": 12,
+		"thresholdScore": 7,
+		"projectName": "Taskmaster",
+		"usedResearch": true
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 1,
+			"taskTitle": "Setup Project Infrastructure",
+			"complexityScore": 7,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down into: initialize repo and version control, configure frontend with Next.js and Tailwind, configure backend with Express and Prisma, set up Docker Compose for PostgreSQL and Redis, and verify local environment with test runs.",
+			"reasoning": "Involves coordinating multiple technologies and ensuring compatibility; requires structured setup for scalability and team onboarding."
+		},
+		{
+			"taskId": 2,
+			"taskTitle": "Implement Authentication System",
+			"complexityScore": 8,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Break down into: design JWT strategy with refresh tokens, implement Express middleware, integrate Supabase auth, build registration and hashing logic, add Zod validation, and secure frontend token handling with Zustand.",
+			"reasoning": "Security-critical with multiple layers (tokens, roles, validation, storage); must handle edge cases and integrate with external auth provider."
+		},
+		{
+			"taskId": 3,
+			"taskTitle": "Setup Database Schema",
+			"complexityScore": 7,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Break down into: define Prisma models with relationships, add indexes and constraints, generate and run initial migrations, and validate schema against RF requirements with sample CRUD operations.",
+			"reasoning": "Core foundation for all data operations; requires careful modeling to support future features and performance needs."
+		},
+		{
+			"taskId": 4,
+			"taskTitle": "Develop Works Management Module",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down into: design React CRUD UI with Shadcn/ui, implement Express API endpoints, integrate Prisma for data access, add Zod validation, and implement work history tracking.",
+			"reasoning": "Moderate complexity due to UI/backend coordination, validation, and state tracking; depends on auth and schema being stable."
+		},
+		{
+			"taskId": 5,
+			"taskTitle": "Implement Supplier Management",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down into: build React supplier forms, implement backend CRUD APIs, integrate WhatsApp notifications, add material category classification, and track supplier performance history.",
+			"reasoning": "Involves form handling, external integrations, and categorization logic; moderate complexity due to real-time notification requirements."
+		},
+		{
+			"taskId": 6,
+			"taskTitle": "Create Material Request System",
+			"complexityScore": 5,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Break down into: design request form with React Hook Form, implement file upload to Supabase Storage, build backend API with status tracking, and integrate with material catalog for validation.",
+			"reasoning": "Focused scope but requires file handling and integration with external storage; validation and linking to works adds moderate complexity."
+		},
+		{
+			"taskId": 7,
+			"taskTitle": "Build Quotation Distribution System",
+			"complexityScore": 8,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down into: implement supplier selection logic, integrate WhatsApp API for message sending, set up webhook listeners for responses, store quotation metadata, and add deadline-based notifications.",
+			"reasoning": "High complexity due to automation, external API integration, real-time response handling, and business rule enforcement (3 suppliers, 24h deadline)."
+		},
+		{
+			"taskId": 8,
+			"taskTitle": "Develop Proposal Reception and Parsing",
+			"complexityScore": 9,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down into: configure WhatsApp webhooks, design parsing engine using regex/NLP, validate parsed data formats, implement confirmation responses, and update database with structured proposal data.",
+			"reasoning": "High complexity due to unstructured input parsing, accuracy requirements, and integration with messaging platform; potential for edge cases and format variations."
+		},
+		{
+			"taskId": 9,
+			"taskTitle": "Implement Approval Workflow",
+			"complexityScore": 7,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down into: define hierarchical approval rules by value, implement Bull.js queues for async processing, integrate notification systems (email/WhatsApp), log approval history, and handle justification inputs.",
+			"reasoning": "Requires business logic orchestration, async job handling, and multi-channel notifications; moderate to high complexity due to conditional routing and audit trails."
+		},
+		{
+			"taskId": 10,
+			"taskTitle": "Build Dashboards and Reports",
+			"complexityScore": 7,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down into: design dashboard layout with Chart.js, implement backend metrics APIs, add real-time updates via Supabase, build Excel/PDF export functionality, and optimize data fetching for performance.",
+			"reasoning": "Involves data aggregation, visualization, real-time sync, and export features; complexity driven by performance and UX requirements."
+		},
+		{
+			"taskId": 11,
+			"taskTitle": "Integrate WhatsApp Business API",
+			"complexityScore": 8,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Break down into: configure Z-API/360Dialog credentials, implement message templating system, handle inbound/outbound message routing, and secure API key management with environment variables or vault.",
+			"reasoning": "Critical integration with external service; complexity from API configuration, message lifecycle handling, and security best practices."
+		},
+		{
+			"taskId": 12,
+			"taskTitle": "Testing, Optimization, and Deployment",
+			"complexityScore": 9,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Break down into: write unit/integration tests for core modules, optimize database queries and add Redis caching, configure CI/CD pipeline, deploy to Railway with environment setup, implement monitoring/alerting, and conduct load/security testing.",
+			"reasoning": "Final integration point with high stakes; requires comprehensive coverage, performance tuning, and production-grade deployment practices."
+		}
+	]
+}

@@ -4,8 +4,10 @@ import { AuthService } from './auth.service';
 import { PERMISSION_CATALOG, ROLE_PERMISSION_MAP } from './permissions';
 import { JWTService } from './jwt.service';
 import { authenticateJWT, authRateLimit } from './auth.middleware';
+import { PrismaClient } from '@prisma/client';
 
 const router = express.Router();
+const prisma = new PrismaClient();
 
 // Rate limiting para rotas de autenticação
 const loginLimiter = rateLimit(authRateLimit);
@@ -17,7 +19,6 @@ const loginLimiter = rateLimit(authRateLimit);
 router.post('/register', loginLimiter, async (req, res) => {
   try {
     const result = await AuthService.register(req.body);
-    
     const statusCode = result.success ? 201 : 400;
     res.status(statusCode).json(result);
   } catch (error) {
@@ -36,9 +37,8 @@ router.post('/register', loginLimiter, async (req, res) => {
 router.post('/login', loginLimiter, async (req, res) => {
   try {
     const result = await AuthService.login(req.body);
-    
     const statusCode = result.success ? 200 : 401;
-    
+
     // Se login bem-sucedido, configurar cookie seguro
     if (result.success && result.tokens) {
       res.cookie('refreshToken', result.tokens.refreshToken, {
@@ -48,7 +48,7 @@ router.post('/login', loginLimiter, async (req, res) => {
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
       });
     }
-    
+
     res.status(statusCode).json(result);
   } catch (error) {
     console.error('Erro no endpoint login:', error);
@@ -66,7 +66,6 @@ router.post('/login', loginLimiter, async (req, res) => {
 router.post('/logout', authenticateJWT, async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
-    
     if (!refreshToken) {
       return res.status(400).json({
         success: false,
@@ -75,10 +74,8 @@ router.post('/logout', authenticateJWT, async (req, res) => {
     }
 
     const result = await AuthService.logout(refreshToken);
-    
     // Limpar cookie
     res.clearCookie('refreshToken');
-    
     res.json(result);
   } catch (error) {
     console.error('Erro no endpoint logout:', error);
@@ -96,7 +93,6 @@ router.post('/logout', authenticateJWT, async (req, res) => {
 router.post('/refresh', async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
-    
     if (!refreshToken) {
       return res.status(400).json({
         success: false,
@@ -105,9 +101,8 @@ router.post('/refresh', async (req, res) => {
     }
 
     const result = await AuthService.refreshToken(refreshToken);
-    
     const statusCode = result.success ? 200 : 401;
-    
+
     // Atualizar cookie se necessário
     if (result.success && result.tokens) {
       res.cookie('refreshToken', result.tokens.refreshToken, {
@@ -117,7 +112,7 @@ router.post('/refresh', async (req, res) => {
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
       });
     }
-    
+
     res.status(statusCode).json(result);
   } catch (error) {
     console.error('Erro no endpoint refresh:', error);
@@ -142,15 +137,13 @@ router.get('/me', authenticateJWT, async (req, res) => {
     }
 
     // Buscar dados atualizados do usuário
-    const prisma = new (require('@prisma/client').PrismaClient)();
-    const usuario = await prisma.usuario.findUnique({
+    const usuario = await prisma.user.findUnique({
       where: { id: req.user.userId },
       select: {
         id: true,
         nome: true,
         cargo: true,
         whatsapp: true,
-        permissions: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -163,6 +156,9 @@ router.get('/me', authenticateJWT, async (req, res) => {
       });
     }
 
+    // Calcular permissões baseado no cargo
+    const permissions = ROLE_PERMISSION_MAP[usuario.cargo] || [];
+
     res.json({
       success: true,
       user: {
@@ -170,7 +166,7 @@ router.get('/me', authenticateJWT, async (req, res) => {
         nome: usuario.nome,
         cargo: usuario.cargo,
         whatsapp: usuario.whatsapp,
-        permissions: usuario.permissions,
+        permissions: permissions,
         createdAt: usuario.createdAt,
         updatedAt: usuario.updatedAt,
       },
@@ -198,14 +194,13 @@ router.post('/logout-all', authenticateJWT, async (req, res) => {
     }
 
     const revoked = await JWTService.revokeAllUserTokens(req.user.userId);
-    
     // Limpar cookie
     res.clearCookie('refreshToken');
-    
+
     res.json({
       success: revoked,
-      message: revoked 
-        ? 'Logout realizado de todas as sessões' 
+      message: revoked
+        ? 'Logout realizado de todas as sessões'
         : 'Erro ao fazer logout de todas as sessões',
     });
   } catch (error) {

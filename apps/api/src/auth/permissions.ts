@@ -1,31 +1,15 @@
-// Catálogo de permissões e mapa de roles → permissões (RBAC)
+// Sistema de permissões baseado em RBAC (Role-Based Access Control)
+//
+// IMPORTANTE:
+// - As permissões são DERIVADAS dinamicamente do cargo do usuário
+// - NÃO são persistidas no banco de dados
+// - São calculadas on-demand via getPermissionsByCargo(cargo)
+// - Devem ser incluídas no JWT apenas no momento do login/refresh
+//
+import { UserPermissions } from './types';
 
-export type PermissionKey =
-  | 'canCreatePedidos'
-  | 'canViewPedidos'
-  | 'canApprovePedidos'
-  | 'canViewReports'
-  | 'canManageUsers'
-  | 'canAccessFinancial';
-
-export type PermissionSet = {
-  [K in PermissionKey]?: boolean;
-} & {
-  maxApprovalValue?: number;
-  // Campos operacionais gravados em permissions JSON, não fazem parte do RBAC em si
-  hashedPassword?: string | null;
-  lastLogin?: string | null;
-  loginAttempts?: number;
-  lockedUntil?: string | null;
-  refreshTokens?: Array<{
-    token: string;
-    expiresAt: string;
-    isRevoked: boolean;
-    createdAt: string;
-  }>;
-};
-
-export const PERMISSION_CATALOG: Record<PermissionKey | 'maxApprovalValue', string> = {
+// Catálogo de permissões disponíveis no sistema
+export const PERMISSION_CATALOG = {
   canCreatePedidos: 'Criar pedidos e enfileirar jobs',
   canViewPedidos: 'Listar e visualizar pedidos',
   canApprovePedidos: 'Aprovar pedidos (limitado por maxApprovalValue)',
@@ -35,8 +19,10 @@ export const PERMISSION_CATALOG: Record<PermissionKey | 'maxApprovalValue', stri
   maxApprovalValue: 'Valor máximo (R$) que o usuário pode aprovar',
 };
 
-// Observação: as chaves dos cargos devem ser minúsculas para comparação case-insensitive
-export const ROLE_PERMISSION_MAP: Record<string, PermissionSet> = {
+// Mapeamento de cargos para permissões
+// ATENÇÃO: As chaves dos cargos devem ser minúsculas para comparação case-insensitive
+// Este mapeamento define as permissões base para cada cargo
+export const ROLE_PERMISSION_MAP: Record<string, UserPermissions> = {
   'engenheiro civil': {
     canCreatePedidos: true,
     canViewPedidos: true,
@@ -94,18 +80,27 @@ export const ROLE_PERMISSION_MAP: Record<string, PermissionSet> = {
   },
 };
 
-export function getPermissionsByCargo(cargo: string): PermissionSet {
+/**
+ * Obtém as permissões do usuário baseado no seu cargo
+ *
+ * Esta é a FUNÇÃO PRINCIPAL para obter permissões - sempre use esta função
+ * em vez de acessar ROLE_PERMISSION_MAP diretamente.
+ *
+ * As permissões são calculadas dinamicamente e não são armazenadas no banco.
+ *
+ * @param cargo - Nome do cargo do usuário (case-insensitive)
+ * @returns UserPermissions - Objeto com todas as permissões do usuário
+ */
+export function getPermissionsByCargo(cargo: string): UserPermissions {
   const key = (cargo || 'default').toLowerCase();
-  return (ROLE_PERMISSION_MAP[key] ?? ROLE_PERMISSION_MAP.default) as PermissionSet;
+  return (ROLE_PERMISSION_MAP[key] ?? ROLE_PERMISSION_MAP.default);
 }
 
-export function hasPermission(userPermissions: PermissionSet | any, permission: PermissionKey): boolean {
+export function hasPermission(userPermissions: UserPermissions | undefined, permission: keyof UserPermissions): boolean {
   return userPermissions?.[permission] === true;
 }
 
-export function canApproveValue(userPermissions: PermissionSet | any, value: number): boolean {
+export function canApproveValue(userPermissions: UserPermissions | undefined, value: number): boolean {
   const maxApproval = userPermissions?.maxApprovalValue || 0;
   return value <= maxApproval;
 }
-
-

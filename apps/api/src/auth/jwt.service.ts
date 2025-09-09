@@ -1,7 +1,8 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
-import { UserPermissions, RefreshTokenData } from './types';
+import { Usuario, Tokens, JWTPayload } from './types';
+import { getPermissionsByCargo } from './permissions';
 
 const prisma = new PrismaClient();
 
@@ -11,33 +12,16 @@ const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'bmad-refresh-secre
 const ACCESS_TOKEN_EXPIRY = '30m'; // 30 minutos
 const REFRESH_TOKEN_EXPIRY = '7d'; // 7 dias
 
-export interface JWTPayload {
-  userId: string;
-  whatsapp: string;
-  cargo: string;
-  permissions: any;
-  iat?: number;
-  exp?: number;
-}
-
-export interface TokenPair {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
-}
-
-// RefreshTokenData agora está em types.ts
-
 export class JWTService {
   /**
    * Gerar par de tokens (access + refresh)
    */
-  static async generateTokens(usuario: any): Promise<TokenPair> {
+  static async generateTokens(user: Usuario): Promise<Tokens> {
     const payload: JWTPayload = {
-      userId: usuario.id,
-      whatsapp: usuario.whatsapp,
-      cargo: usuario.cargo,
-      permissions: usuario.permissions || {},
+      userId: user.id,
+      whatsapp: user.whatsapp,
+      cargo: user.cargo,
+      permissions: getPermissionsByCargo(user.cargo),
     };
 
     // Gerar access token
@@ -50,7 +34,7 @@ export class JWTService {
     // Gerar refresh token
     const refreshTokenValue = crypto.randomBytes(64).toString('hex');
     const refreshToken = jwt.sign(
-      { tokenId: refreshTokenValue, userId: usuario.id },
+      { tokenId: refreshTokenValue, userId: user.id },
       JWT_REFRESH_SECRET,
       {
         expiresIn: REFRESH_TOKEN_EXPIRY,
@@ -59,24 +43,14 @@ export class JWTService {
       }
     );
 
-    // Salvar refresh token no banco (temporariamente usando campo JSON)
-    // TODO: Criar tabela específica para refresh tokens
+    // Salvar refresh token no banco
     try {
-      await prisma.usuario.update({
-        where: { id: usuario.id },
-                          data: {
-          permissions: {
-            ...((usuario.permissions as any) || {}),
-            refreshTokens: [
-              ...((usuario.permissions as any)?.refreshTokens || []),
-              {
-                token: refreshTokenValue,
-                expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-                isRevoked: false,
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          } as any,
+      await prisma.refreshToken.create({
+        data: {
+          userId: user.id,
+          token: refreshTokenValue,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          isRevoked: false,
         },
       });
     } catch (error) {
@@ -99,7 +73,6 @@ export class JWTService {
         issuer: 'bmad-laura-system',
         audience: 'bmad-users',
       }) as JWTPayload;
-
       return decoded;
     } catch (error) {
       console.error('Token inválido:', (error as Error).message);
@@ -115,24 +88,23 @@ export class JWTService {
       const decoded = jwt.verify(token, JWT_REFRESH_SECRET, {
         issuer: 'bmad-laura-system',
         audience: 'bmad-users',
-      }) as any;
+      }) as { tokenId: string; userId: string };
 
       // Verificar se o refresh token existe e não foi revogado
-      const usuario = await prisma.usuario.findUnique({
-        where: { id: decoded.userId },
+      const refreshTokenData = await prisma.refreshToken.findFirst({
+        where: {
+          token: decoded.tokenId,
+          userId: decoded.userId,
+          isRevoked: false,
+        },
       });
 
-      if (!usuario) {
+      if (!refreshTokenData) {
         return null;
       }
 
-      const permissions = (usuario.permissions as any) || {};
-      const refreshTokens = permissions.refreshTokens || [];
-      const tokenData = refreshTokens.find(
-        (rt: any) => rt.token === decoded.tokenId && !rt.isRevoked
-      );
-
-      if (!tokenData || new Date() > new Date(tokenData.expiresAt)) {
+      // Verificar se não expirou
+      if (new Date() > refreshTokenData.expiresAt) {
         return null;
       }
 
@@ -146,21 +118,21 @@ export class JWTService {
   /**
    * Refresh access token
    */
-  static async refreshAccessToken(refreshToken: string): Promise<TokenPair | null> {
+  static async refreshAccessToken(refreshToken: string): Promise<Tokens | null> {
     const userId = await this.verifyRefreshToken(refreshToken);
     if (!userId) {
       return null;
     }
 
-    const usuario = await prisma.usuario.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: userId },
     });
 
-    if (!usuario) {
+    if (!user) {
       return null;
     }
 
-    return this.generateTokens(usuario);
+    return this.generateTokens(user);
   }
 
   /**
@@ -168,30 +140,18 @@ export class JWTService {
    */
   static async revokeRefreshToken(refreshToken: string): Promise<boolean> {
     try {
-      const decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET) as any;
-      
-      const usuario = await prisma.usuario.findUnique({
-        where: { id: decoded.userId },
-      });
+      const decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET) as {
+        tokenId: string;
+        userId: string;
+      };
 
-      if (!usuario) {
-        return false;
-      }
-
-            // Marcar token como revogado
-      const permissions = (usuario.permissions as any) || {};
-      const refreshTokens = permissions.refreshTokens || [];
-      const updatedTokens = refreshTokens.map((rt: any) =>
-        rt.token === decoded.tokenId ? { ...rt, isRevoked: true } : rt
-      );
-
-      await prisma.usuario.update({
-        where: { id: decoded.userId },
+      await prisma.refreshToken.updateMany({
+        where: {
+          token: decoded.tokenId,
+          userId: decoded.userId,
+        },
         data: {
-          permissions: {
-            ...permissions,
-            refreshTokens: updatedTokens,
-          } as any,
+          isRevoked: true,
         },
       });
 
@@ -207,21 +167,13 @@ export class JWTService {
    */
   static async revokeAllUserTokens(userId: string): Promise<boolean> {
     try {
-      const usuario = await prisma.usuario.findUnique({
-        where: { id: userId },
-      });
-
-      if (!usuario) {
-        return false;
-      }
-
-            await prisma.usuario.update({
-        where: { id: userId },
+      await prisma.refreshToken.updateMany({
+        where: {
+          userId: userId,
+          isRevoked: false,
+        },
         data: {
-          permissions: {
-            ...((usuario.permissions as any) || {}),
-            refreshTokens: [],
-          } as any,
+          isRevoked: true,
         },
       });
 
@@ -237,33 +189,21 @@ export class JWTService {
    */
   static async cleanExpiredTokens(): Promise<void> {
     try {
-      const usuarios = await prisma.usuario.findMany({
+      // Remover tokens expirados e revogados da tabela refreshToken
+      await prisma.refreshToken.deleteMany({
         where: {
-          permissions: {
-            not: {},
-          },
+          OR: [
+            {
+              expiresAt: {
+                lt: new Date(),
+              },
+            },
+            {
+              isRevoked: true,
+            },
+          ],
         },
       });
-
-      for (const usuario of usuarios) {
-        const permissions = usuario.permissions as UserPermissions | null;
-      const refreshTokens = permissions?.refreshTokens || [];
-        const validTokens = refreshTokens.filter(
-          (rt: any) => new Date() <= new Date(rt.expiresAt) && !rt.isRevoked
-        );
-
-        if (validTokens.length !== refreshTokens.length) {
-                    await prisma.usuario.update({
-            where: { id: usuario.id },
-            data: {
-              permissions: {
-                ...((usuario.permissions as any) || {}),
-                refreshTokens: validTokens,
-              } as any,
-            },
-          });
-        }
-      }
     } catch (error) {
       console.error('Erro ao limpar tokens expirados:', error);
     }

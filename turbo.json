@@ -30,6 +30,22 @@
     "clean": {
       "cache": false,
       "outputs": []
+    },
+    "generate": {
+      "cache": false
+    },
+    "migrate": {
+      "cache": false
+    },
+    "studio": {
+      "cache": false,
+      "persistent": true
+    },
+    "seed": {
+      "cache": false
+    },
+    "reset": {
+      "cache": false
     }
   }
 }

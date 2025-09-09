@@ -1,0 +1,11 @@
+# Task ID: 4
+# Title: Material Requests and Quotation System
+# Status: pending
+# Dependencies: None
+# Priority: medium
+# Description: Build the system for creating material requests, distributing quotations to suppliers, and receiving proposals.
+# Details:
+Backend: Models for Requests (id, work_id, materials, status) and Quotations (id, request_id, supplier_id, price, deadline). Implement logic to distribute to at least 3 suppliers per category, send WhatsApp notifications. Frontend: Forms for creating requests with file uploads (Supabase Storage). Interface for viewing quotations. Pseudo-code: Backend - async function distributeQuotation(requestId) { const suppliers = await prisma.supplier.findMany({ where: { category: request.category } }); // Send WhatsApp via Z-API }; Frontend - const requestForm = () => { // Use React Hook Form for submission };
+
+# Test Strategy:
+Test quotation distribution logic, WhatsApp message sending (mocked), proposal parsing. End-to-end tests for request creation to quotation receipt.

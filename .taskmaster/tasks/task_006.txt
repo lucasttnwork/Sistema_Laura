@@ -1,0 +1,11 @@
+# Task ID: 6
+# Title: Dashboards, Reports, and WhatsApp Integration
+# Status: pending
+# Dependencies: None
+# Priority: medium
+# Description: Create executive dashboards, reports, and full WhatsApp Business API integration for communication.
+# Details:
+Backend: Implement APIs for metrics (e.g., requests by status), integrate Z-API or 360Dialog for WhatsApp (send/receive messages, webhooks). Frontend: Build dashboards with charts using Shadcn/ui, export to PDF/Excel. Pseudo-code: Backend - app.get('/metrics', async (req, res) => { const metrics = await prisma.request.groupBy({ by: 'status' }); res.json(metrics); }); WhatsApp - Setup webhook to process incoming proposals. Frontend - Use React Query for real-time data.
+
+# Test Strategy:
+Test dashboard data accuracy, WhatsApp message flows (mocked API). Performance tests for report generation.

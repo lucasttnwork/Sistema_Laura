@@ -1,4 +1,5 @@
-export { initTracing } from './tracing';
-export { metricsRouter, startMetricsServer, registerDefaultMetrics } from './metrics';
+// BMAD Observability Package
+// OpenTelemetry instrumentation and logging setup
 
-
+export * from './logger';
+export * from './tracer';

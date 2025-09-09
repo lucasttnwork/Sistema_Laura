@@ -1,0 +1,49 @@
+# Task ID: 2
+# Title: Authentication and Authorization
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Implement user authentication and role-based access control for different personas (Compradora, Fiscal, Aprovadores, Fornecedores).
+# Details:
+Use JWT with refresh tokens for authentication. Integrate Supabase for production auth. Define roles and permissions for personas. Implement login/logout endpoints in Express.js backend with Zod validation. Frontend: Create login forms using React Hook Form and Shadcn/ui. Pseudo-code: Backend - app.post('/auth/login', async (req, res) => { const { email, password } = req.body; // Validate with Zod, check user in DB, generate JWT }); Frontend - const handleLogin = () => { // Use Axios to call API, store token in Zustand state };
+
+# Test Strategy:
+Test login flows for different roles, verify JWT tokens, check unauthorized access is blocked. Use integration tests for API endpoints.
+
+# Subtasks:
+## 1. Corrigir inconsistência de nomes de modelo (User vs Usuario) [pending]
+### Dependencies: None
+### Description: Corrigir a inconsistência entre os modelos User e Usuario no schema Prisma e código de autenticação
+### Details:
+O schema Prisma define o modelo como 'User' mas alguns endpoints usam 'usuario'. Padronizar para 'User' em todo o código.
+
+## 2. Implementar tabela dedicada para refresh tokens [pending]
+### Dependencies: None
+### Description: Criar tabela própria para refresh tokens no lugar do campo JSON temporário
+### Details:
+Substituir o armazenamento de refresh tokens no campo JSON permissions por uma tabela dedicada 'RefreshToken' no schema Prisma
+
+## 3. Corrigir endpoint /auth/me - query incorreta [pending]
+### Dependencies: None
+### Description: Corrigir o bug no endpoint /auth/me que usa query incorreta para buscar dados do usuário
+### Details:
+O endpoint está usando prisma.usuario.findUnique mas deve usar prisma.user.findUnique conforme o schema
+
+## 4. Implementar limpeza automática de tokens expirados [pending]
+### Dependencies: None
+### Description: Melhorar o sistema de limpeza de tokens expirados com job mais eficiente
+### Details:
+Substituir o setInterval simples por um job mais robusto e implementar limpeza baseada em eventos
+
+## 5. Implementar validação de senha forte [pending]
+### Dependencies: None
+### Description: Adicionar validação de força da senha no registro e mudança de senha
+### Details:
+Implementar regras de senha forte (mínimo 8 caracteres, maiúscula, minúscula, número, símbolo) usando biblioteca como zxcvbn
+
+## 6. Criar testes unitários e de integração para autenticação [pending]
+### Dependencies: None
+### Description: Implementar suíte completa de testes para todos os endpoints e funcionalidades de autenticação
+### Details:
+Criar testes para registro, login, logout, refresh token, middleware de autenticação, validações e casos de erro
+

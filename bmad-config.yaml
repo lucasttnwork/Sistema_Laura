@@ -1,0 +1,114 @@
+# BMAD Configuration for Laura System
+version: "5.0"
+project: "laura-system"
+domain: "construction-procurement"
+
+# Files that Dev agent ALWAYS loads
+devLoadAlwaysFiles:
+  - docs/architecture/coding-standards.md
+  - docs/architecture/tech-stack.md
+  - docs/architecture/project-structure.md
+  - docs/architecture/ai-agents-architecture.md
+  - docs/planning/prd.md
+
+# Agent Configuration
+agents:
+  enabledAgents:
+    - analyst
+    - pm
+    - architect
+    - sm
+    - dev
+    - qa
+    - laura-specialist
+    - whatsapp-specialist
+
+  customAgents:
+    laura-specialist:
+      role: "Laura 01 Domain Expert"
+      focus: "Construction procurement and supplier management"
+    whatsapp-specialist:
+      role: "WhatsApp Integration Expert"
+      focus: "WhatsApp Business API and messaging workflows"
+
+# Story Configuration
+stories:
+  format: "markdown"
+  location: "docs/stories"
+  autoNumbering: true
+  template: "bmad-core/templates/story-template.md"
+
+  validation:
+    requiredSections:
+      - "Story Overview"
+      - "Technical Context"
+      - "Implementation Details"
+      - "Acceptance Criteria"
+      - "Testing Requirements"
+
+# Metrics Configuration
+metrics:
+  enabled: true
+  collectInterval: "hourly"
+
+  trackedMetrics:
+    - storyCompletionRate
+    - codeQualityScore
+    - testCoverage
+    - buildSuccess
+    - deploymentFrequency
+    - leadTime
+    - mttr
+
+  customMetrics:
+    - lauraResponseTime
+    - whatsappMessageProcessing
+    - supplierResponseRate
+    - quotationAccuracy
+
+# Workflow Configuration
+workflow:
+  phases:
+    planning:
+      agents: ["analyst", "pm", "architect"]
+      outputs: ["project-brief", "prd", "architecture"]
+
+    development:
+      agents: ["sm", "dev", "qa"]
+      iterationType: "sprint"
+      sprintLength: 14
+
+    specialization:
+      agents: ["laura-specialist", "whatsapp-specialist"]
+      trigger: "on-demand"
+
+# Integration Configuration
+integrations:
+  versionControl:
+    type: "git"
+    autoCommitStories: true
+
+  ci:
+    provider: "github-actions"
+    validateStories: true
+    runTestsOnStoryComplete: true
+
+  monitoring:
+    provider: "custom"
+    dashboardUrl: "/dashboard/analytics"
+
+# Quality Gates
+qualityGates:
+  story:
+    minAcceptanceCriteria: 3
+    requiresTestPlan: true
+    requiresCodeReview: true
+
+  code:
+    minTestCoverage: 80
+    maxComplexity: 10
+    lintingRequired: true
+
+  deployment:
+    requiresApproval: true
+    rollbackOnFailure: true
