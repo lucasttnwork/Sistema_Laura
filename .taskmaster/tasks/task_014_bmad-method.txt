@@ -1,0 +1,11 @@
+# Task ID: 14
+# Title: Implement Authentication and Authorization
+# Status: pending
+# Dependencies: 13
+# Priority: high
+# Description: Develop JWT-based authentication system with refresh tokens for user login and role-based access control.
+# Details:
+Use Express.js middleware for JWT validation. Integrate Supabase for production auth if needed. Implement user roles for Compradora, Fiscal, Aprovador, and Fornecedor. Add login/logout endpoints and protect routes accordingly.
+
+# Test Strategy:
+Test login flows for different user roles, verify token refresh, and ensure unauthorized access is blocked. Use Postman or similar for API testing.

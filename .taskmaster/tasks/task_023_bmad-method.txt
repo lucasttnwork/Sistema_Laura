@@ -1,0 +1,36 @@
+# Task ID: 23
+# Title: Document Mitigated Risks for Refactored Authentication System
+# Status: done
+# Dependencies: 2
+# Priority: medium
+# Description: Create a comprehensive risk log documenting mitigated risks in the refactored JWT-based authentication system integrated with Prisma, including secure token handling, session management, and secret protection, along with a detailed monitoring and alerts plan. The risk matrix has been created in `.taskmaster/docs/riscos.md` and should be consolidated and expanded based on linked documents.
+# Details:
+This task involves compiling a detailed risk log for the refactored authentication system, focusing on Prisma-integrated user management and JWT token mechanisms. Key areas to document include: (1) Token Storage: Mitigate risks of insecure storage by ensuring tokens are stored securely on the frontend using Zustand with encryption, and on the backend via secure HTTP-only cookies or in-memory sessions; (2) Rotation/Expiration: Implement automatic token rotation and expiration policies (e.g., access tokens expiring in 15 minutes, refresh tokens in 7 days) to reduce exposure, with Prisma models tracking token metadata; (3) Revocation: Develop mechanisms for immediate token revocation upon logout or suspicious activity, storing revoked tokens in a Prisma-managed blacklist table for validation; (4) Session Integrity: Ensure session integrity through JWT signature verification, CSRF protection, and rate limiting on authentication endpoints; (5) Secret Leakage: Protect secrets by using environment variables for JWT keys, rotating secrets periodically, and implementing audit logs in Prisma for access to sensitive data. Additionally, outline a monitoring and alerts plan: Set up logging with tools like Winston or Pino to capture authentication events; integrate alerts via email/SMS for anomalies such as multiple failed logins, unusual IP access, or token misuse; use Prometheus/Grafana for metrics on login success rates, token issuance, and revocation events; and define escalation procedures for security incidents. Consider compliance with standards like OWASP guidelines and GDPR for data protection. The documentation should be in a structured format (e.g., Markdown or Confluence page) with sections for each risk category, mitigation strategies, and monitoring details.
+<info added on 2025-09-09T12:57:39.090Z>
+Linked Documents for Task 23:
+
+1. `.taskmaster/docs/riscos.md` - Main document containing the QA risk matrix that this task should update and expand.
+2. `.taskmaster/docs/test-architect-auth.md` - Test architecture that informs test risks and validation.
+3. `.taskmaster/docs/nfr-auth.md` - Non-functional requirements defining performance and security risks.
+4. `.taskmaster/docs/gates.md` - Gate criteria that influence approval and merge risks.
+
+Required Action: This task should consolidate and expand the content of `.taskmaster/docs/riscos.md` based on information from the other documents, creating a comprehensive risk log for the refactored authentication system.
+</info added on 2025-09-09T12:57:39.090Z>
+
+Updated Context: A detailed risk matrix for the Auth→Prisma refactoring has been created and saved in `.taskmaster/docs/riscos.md`. The matrix includes 12 specific risks covering:
+- R1-R2: Main risks (cleartext passwords, refresh tokens in JSON)
+- R3: Schema↔code divergence
+- R4-R6: Operational security (race conditions, revocation, replay)
+- R7-R9: Policies and performance
+- R10-R12: Migration and validation
+
+Each risk includes probability, impact, detailed mitigation, expected evidence, owner, and priority. Technical context includes:
+- RefreshToken model with fields like tokenHash, fingerprint, etc.
+- bcryptjs with salt rounds 12
+- Mapped critical flows
+- Links to supporting documentation (NFR, test architecture, gates)
+
+Acceptance Criteria: All high-priority risks must have evidence before merge to production.
+
+# Test Strategy:
+To verify completion, review the risk log document for completeness: Ensure all specified risk categories (token storage, rotation/expiration, revocation, session integrity, secret leakage) are covered with detailed mitigation descriptions and evidence of implementation (e.g., code snippets or configuration files); validate the monitoring/alerts plan by checking that logging is active and alerts are triggered in a test environment (simulate failed logins to confirm email alerts); perform a security audit walkthrough with the team to confirm mitigations align with best practices; conduct a dry-run of the alerts system to ensure timely notifications for predefined thresholds. Additionally, verify the updated `.taskmaster/docs/riscos.md` matrix includes all 12 risks (R1-R12) with required details; confirm consolidation with linked documents; and ensure high-priority risks have documented evidence prior to production merge.

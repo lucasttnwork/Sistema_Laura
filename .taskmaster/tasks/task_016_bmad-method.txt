@@ -1,0 +1,11 @@
+# Task ID: 16
+# Title: Build Obras Management Module
+# Status: pending
+# Dependencies: 14, 15
+# Priority: medium
+# Description: Create CRUD operations for managing obras, including cadastro, vinculation of fiscais, and status control.
+# Details:
+Develop API endpoints for obras (GET, POST, PUT, DELETE). Frontend: React components for listing, creating, and editing obras. Integrate with database via Prisma. Include history tracking.
+
+# Test Strategy:
+Unit tests for API endpoints, integration tests for frontend-backend interaction, and manual testing for UI responsiveness.

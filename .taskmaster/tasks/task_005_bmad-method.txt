@@ -1,0 +1,43 @@
+# Task ID: 5
+# Title: Implement Supplier Management
+# Status: pending
+# Dependencies: 2, 3
+# Priority: medium
+# Description: Develop features for supplier registration, categorization, status control, and performance history.
+# Details:
+Build forms in React for supplier data entry. Create backend APIs for CRUD operations. Integrate WhatsApp for automatic notifications. Use Prisma for data handling. Add classification by material category.
+
+# Test Strategy:
+Register suppliers, update statuses, verify categorization, test WhatsApp integration for notifications.
+
+# Subtasks:
+## 1. Design and Build Supplier Registration Form in React [pending]
+### Dependencies: None
+### Description: Create a React form using Shadcn/ui and Tailwind for supplier data entry, including fields for name, contact, material category, and status.
+### Details:
+Use React Hook Form with Zod validation. Ensure responsive design and accessibility compliance.
+
+## 2. Develop Backend CRUD APIs for Supplier Management [pending]
+### Dependencies: 5.1
+### Description: Implement Express.js endpoints for creating, reading, updating, and deleting supplier records.
+### Details:
+Use Prisma ORM to interact with the database. Include Zod validation for API inputs and JWT middleware for authentication.
+
+## 3. Implement Supplier Categorization by Material Type [pending]
+### Dependencies: 5.2
+### Description: Extend supplier model and UI to support classification by material category, enabling filtering and reporting.
+### Details:
+Add material category field to Prisma schema. Update React form and API to handle category assignment and queries.
+
+## 4. Integrate WhatsApp Notifications for Supplier Status Changes [pending]
+### Dependencies: 5.2
+### Description: Set up automatic WhatsApp notifications triggered by supplier status updates (e.g., approved, suspended).
+### Details:
+Use Twilio or similar WhatsApp Business API. Trigger notifications via backend events when supplier status is modified.
+
+## 5. Add Supplier Performance History Tracking [pending]
+### Dependencies: 5.2
+### Description: Implement functionality to log and display supplier performance metrics and historical interactions.
+### Details:
+Extend Prisma schema to store performance events. Create API endpoint and UI component to display history timeline.
+

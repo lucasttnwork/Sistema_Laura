@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import { JWTService } from './jwt.service';
 import { hasPermission, canApproveValue } from './permissions';
 import { JWTPayload, UserPermissions } from './types';
+import { logger, createRequestLogger } from '@bmad/observability';
 
 /**
  * Middleware de autenticação JWT
@@ -11,6 +12,8 @@ export const authenticateJWT = (req: Request, res: Response, next: NextFunction)
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
+      const reqLogger = createRequestLogger(logger, { requestId: (req as any).requestId });
+      reqLogger.warn('auth.middleware.missing_bearer');
       res.status(401).json({
         success: false,
         error: 'Token de acesso não fornecido',
@@ -21,6 +24,8 @@ export const authenticateJWT = (req: Request, res: Response, next: NextFunction)
 
     const token = authHeader.split(' ')[1]; // Bearer <token>
     if (!token) {
+      const reqLogger = createRequestLogger(logger, { requestId: (req as any).requestId });
+      reqLogger.warn('auth.middleware.invalid_format');
       res.status(401).json({
         success: false,
         error: 'Formato de token inválido',
@@ -31,6 +36,8 @@ export const authenticateJWT = (req: Request, res: Response, next: NextFunction)
 
     const decoded = JWTService.verifyAccessToken(token);
     if (!decoded) {
+      const reqLogger = createRequestLogger(logger, { requestId: (req as any).requestId });
+      reqLogger.warn('auth.middleware.invalid_or_expired');
       res.status(401).json({
         success: false,
         error: 'Token inválido ou expirado',
@@ -40,9 +47,18 @@ export const authenticateJWT = (req: Request, res: Response, next: NextFunction)
     }
 
     req.user = decoded;
+    // Atualiza logger por requisição com userId recém autenticado
+    (req as any).logger = createRequestLogger(logger, {
+      requestId: (req as any).requestId,
+      userId: decoded.userId,
+    });
     next();
   } catch (error) {
-    console.error('Erro na autenticação:', error);
+    const reqLogger = createRequestLogger(logger, {
+      requestId: (req as any).requestId,
+      userId: (req as any).user?.userId,
+    });
+    reqLogger.error('auth.middleware.error', { error: (error as Error).message });
     res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',

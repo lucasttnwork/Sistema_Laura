@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import { Usuario, Tokens, JWTPayload } from './types';
 import { getPermissionsByCargo } from './permissions';
+import { logger } from '@bmad/observability';
 
 const prisma = new PrismaClient();
 
@@ -53,8 +54,15 @@ export class JWTService {
           isRevoked: false,
         },
       });
+      logger.info('auth.refresh.issued', {
+        userId: user.id,
+        cargo: user.cargo,
+      });
     } catch (error) {
-      console.error('Erro ao salvar refresh token:', error);
+      logger.error('auth.refresh.persist_error', {
+        error: (error as Error).message,
+        userId: user.id,
+      });
     }
 
     return {
@@ -75,7 +83,7 @@ export class JWTService {
       }) as JWTPayload;
       return decoded;
     } catch (error) {
-      console.error('Token inválido:', (error as Error).message);
+      logger.warn('auth.access.invalid_token', { error: (error as Error).message });
       return null;
     }
   }
@@ -83,7 +91,7 @@ export class JWTService {
   /**
    * Validar refresh token
    */
-  static async verifyRefreshToken(token: string): Promise<string | null> {
+  static async verifyRefreshToken(token: string): Promise<{ userId: string; tokenId: string } | null> {
     try {
       const decoded = jwt.verify(token, JWT_REFRESH_SECRET, {
         issuer: 'bmad-laura-system',
@@ -108,9 +116,9 @@ export class JWTService {
         return null;
       }
 
-      return decoded.userId;
+      return { userId: decoded.userId, tokenId: decoded.tokenId };
     } catch (error) {
-      console.error('Refresh token inválido:', (error as Error).message);
+      logger.warn('auth.refresh.invalid_token', { error: (error as Error).message });
       return null;
     }
   }
@@ -119,20 +127,37 @@ export class JWTService {
    * Refresh access token
    */
   static async refreshAccessToken(refreshToken: string): Promise<Tokens | null> {
-    const userId = await this.verifyRefreshToken(refreshToken);
-    if (!userId) {
+    const verified = await this.verifyRefreshToken(refreshToken);
+    if (!verified) {
       return null;
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: verified.userId },
     });
 
     if (!user) {
       return null;
     }
 
-    return this.generateTokens(user);
+    // Revogar o refresh token usado (rotação)
+    try {
+      await prisma.refreshToken.updateMany({
+        where: { token: verified.tokenId, userId: verified.userId, isRevoked: false },
+        data: { isRevoked: true },
+      });
+      logger.info('auth.refresh.rotated', { userId: verified.userId });
+    } catch (error) {
+      logger.error('auth.refresh.rotate_error', {
+        error: (error as Error).message,
+        userId: verified.userId,
+      });
+      return null;
+    }
+
+    // Emitir novos tokens (gera novo refresh e mantém histórico via isRevoked)
+    const tokens = await this.generateTokens(user);
+    return tokens;
   }
 
   /**
@@ -154,10 +179,10 @@ export class JWTService {
           isRevoked: true,
         },
       });
-
+      logger.info('auth.logout.revoked_refresh', { userId: decoded.userId });
       return true;
     } catch (error) {
-      console.error('Erro ao revogar token:', error);
+      logger.error('auth.logout.revoke_error', { error: (error as Error).message });
       return false;
     }
   }
@@ -176,10 +201,10 @@ export class JWTService {
           isRevoked: true,
         },
       });
-
+      logger.info('auth.logout_all.revoked_all', { userId });
       return true;
     } catch (error) {
-      console.error('Erro ao revogar todos tokens:', error);
+      logger.error('auth.logout_all.revoke_all_error', { error: (error as Error).message, userId });
       return false;
     }
   }
@@ -190,7 +215,7 @@ export class JWTService {
   static async cleanExpiredTokens(): Promise<void> {
     try {
       // Remover tokens expirados e revogados da tabela refreshToken
-      await prisma.refreshToken.deleteMany({
+      const result = await prisma.refreshToken.deleteMany({
         where: {
           OR: [
             {
@@ -204,8 +229,9 @@ export class JWTService {
           ],
         },
       });
+      logger.info('auth.refresh.cleanup', { deleted: result.count });
     } catch (error) {
-      console.error('Erro ao limpar tokens expirados:', error);
+      logger.error('auth.refresh.cleanup_error', { error: (error as Error).message });
     }
   }
 }

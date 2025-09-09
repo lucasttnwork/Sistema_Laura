@@ -3,19 +3,27 @@ import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { ZipkinExporter } from '@opentelemetry/exporter-zipkin';
 import { trace } from '@opentelemetry/api';
 
-// Initialize tracer provider
-const provider = new NodeTracerProvider();
+let initialized = false;
+let currentServiceName = 'bmad-laura-01';
 
-// Configure Zipkin exporter for development
-const zipkinExporter = new ZipkinExporter({
-  url: process.env.ZIPKIN_URL || 'http://localhost:9411/api/v2/spans',
-  serviceName: 'bmad-laura-01'
-});
+export function initTracing(opts?: { serviceName?: string; zipkinUrl?: string }): void {
+  if (initialized) return;
+  currentServiceName = opts?.serviceName || currentServiceName;
+  const provider = new NodeTracerProvider();
+  const zipkinExporter = new ZipkinExporter({
+    url: opts?.zipkinUrl || process.env.ZIPKIN_URL || 'http://localhost:9411/api/v2/spans',
+    serviceName: currentServiceName,
+  });
+  provider.addSpanProcessor(new SimpleSpanProcessor(zipkinExporter));
+  provider.register();
+  initialized = true;
+}
 
-provider.addSpanProcessor(new SimpleSpanProcessor(zipkinExporter));
-provider.register();
+// Initialize by default with env/provided defaults, can be no-op if initTracing called earlier
+if (!initialized) {
+  initTracing({});
+}
 
-// Get tracer instance
-export const tracer = trace.getTracer('bmad-laura-01', '1.0.0');
+export const tracer = () => trace.getTracer(currentServiceName, '1.0.0');
 
 export default tracer;

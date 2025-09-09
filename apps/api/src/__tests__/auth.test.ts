@@ -47,6 +47,12 @@ const InMemoryAuthService = {
     if (rec) rec.revoked = true;
     return { success: true, message: 'Logout realizado com sucesso' };
   },
+  async logoutAll(): Promise<any> {
+    for (const [, rec] of refreshStore.entries()) {
+      rec.revoked = true;
+    }
+    return { success: true, message: 'Logout de todas as sessões realizado com sucesso' };
+  },
 };
 
 const inMemoryVerifyBearer = (authHeader?: string): boolean => {
@@ -238,6 +244,15 @@ beforeAll(async () => {
       return json(res, 200, result);
     }
 
+    if (method === 'POST' && url === '/auth/logout-all') {
+      if (!inMemoryVerifyBearer(req.headers.authorization as any)) {
+        return json(res, 401, { success: false, error: 'NO_TOKEN' });
+      }
+      const result = await InMemoryAuthService.logoutAll();
+      res.setHeader('set-cookie', 'refreshToken=; HttpOnly; Path=/; Max-Age=0');
+      return json(res, 200, result);
+    }
+
     if (method === 'GET' && url === '/protected/test') {
       if (!inMemoryVerifyBearer(req.headers.authorization as any)) {
         return json(res, 401, { success: false, error: 'NO_TOKEN' });
@@ -262,6 +277,7 @@ describe('Auth: login, rota protegida, refresh, logout', () => {
     expect(res.status).toBe(200);
     expect(res.body?.success).toBe(true);
     expect(res.body?.tokens?.accessToken).toBeTruthy();
+    expect(res.body?.user?.password).toBeUndefined();
   });
 
   it('GET /protected/test com Bearer <token> retorna 200', async () => {
@@ -278,6 +294,31 @@ describe('Auth: login, rota protegida, refresh, logout', () => {
 
     expect(res.status).toBe(200);
     expect(res.body?.success).toBe(true);
+  });
+
+  it('POST /auth/login com senha errada retorna 401', async () => {
+    const res = await request(server as any)
+      .post('/auth/login')
+      .send({ whatsapp, password: 'errada' });
+
+    expect(res.status).toBe(401);
+    expect(res.body?.success).toBe(false);
+    expect(typeof res.body?.error).toBe('string');
+  });
+
+  it('GET /protected/test sem Bearer retorna 401', async () => {
+    const res = await request(server as any)
+      .get('/protected/test');
+    expect(res.status).toBe(401);
+    expect(res.body?.success).toBe(false);
+  });
+
+  it('GET /protected/test com Bearer inválido retorna 401', async () => {
+    const res = await request(server as any)
+      .get('/protected/test')
+      .set('Authorization', 'Bearer expired');
+    expect(res.status).toBe(401);
+    expect(res.body?.success).toBe(false);
   });
 
   it('POST /auth/refresh com cookie de refresh retorna novo accessToken', async () => {
@@ -297,6 +338,61 @@ describe('Auth: login, rota protegida, refresh, logout', () => {
     expect(res.status).toBe(200);
     expect(res.body?.success).toBe(true);
     expect(res.body?.tokens?.accessToken).toBeTruthy();
+  });
+
+  it('POST /auth/refresh com cookie antigo (após rotação) deve falhar (401)', async () => {
+    const login = await request(server as any)
+      .post('/auth/login')
+      .send({ whatsapp, password });
+
+    const cookies1 = login.headers['set-cookie'] as string[] | undefined;
+    const refreshCookie1 = cookies1?.find((c) => c.startsWith('refreshToken='));
+    expect(refreshCookie1).toBeTruthy();
+
+    const refreshed = await request(server as any)
+      .post('/auth/refresh')
+      .set('Cookie', refreshCookie1 as string)
+      .send();
+
+    expect(refreshed.status).toBe(200);
+
+    // Tentar usar o cookie antigo novamente deve falhar
+    const again = await request(server as any)
+      .post('/auth/refresh')
+      .set('Cookie', refreshCookie1 as string)
+      .send();
+
+    expect([400, 401]).toContain(again.status);
+    expect(again.body?.success).toBe(false);
+  });
+
+  it('POST /auth/refresh com token inválido retorna 401', async () => {
+    const res = await request(server as any)
+      .post('/auth/refresh')
+      .set('Cookie', 'refreshToken=refresh-invalid')
+      .send();
+    expect([400, 401]).toContain(res.status);
+    expect(res.body?.success).toBe(false);
+  });
+
+  it('POST /auth/refresh com token expirado retorna 401', async () => {
+    const login = await request(server as any)
+      .post('/auth/login')
+      .send({ whatsapp, password });
+
+    const cookies = login.headers['set-cookie'] as string[] | undefined;
+    const refreshCookie = cookies?.find((c) => c.startsWith('refreshToken=')) as string;
+    const refreshToken = decodeURIComponent(refreshCookie.split('=')[1].split(';')[0]);
+    const tokenId = refreshToken.replace('refresh-', '');
+    const rec = refreshStore.get(tokenId);
+    if (rec) rec.expiresAt = Date.now() - 1;
+
+    const res = await request(server as any)
+      .post('/auth/refresh')
+      .set('Cookie', refreshCookie)
+      .send();
+    expect([400, 401]).toContain(res.status);
+    expect(res.body?.success).toBe(false);
   });
 
   it('POST /auth/logout revoga o refresh token atual', async () => {
@@ -340,6 +436,34 @@ describe('Auth: login, rota protegida, refresh, logout', () => {
 
     expect([400, 401]).toContain(refreshAfterLogout.status);
     expect(refreshAfterLogout.body?.success).toBe(false);
+  });
+
+  it('POST /auth/logout-all revoga todos os refresh tokens do usuário', async () => {
+    const l1 = await request(server as any)
+      .post('/auth/login')
+      .send({ whatsapp, password });
+    const at1 = l1.body?.tokens?.accessToken as string;
+    const rc1 = (l1.headers['set-cookie'] as string[]).find((c) => c.startsWith('refreshToken=')) as string;
+
+    const l2 = await request(server as any)
+      .post('/auth/login')
+      .send({ whatsapp, password });
+    const at2 = l2.body?.tokens?.accessToken as string;
+    const rc2 = (l2.headers['set-cookie'] as string[]).find((c) => c.startsWith('refreshToken=')) as string;
+
+    const outAll = await request(server as any)
+      .post('/auth/logout-all')
+      .set('Authorization', `Bearer ${at2 || at1}`)
+      .send();
+    expect(outAll.status).toBe(200);
+    expect(outAll.body?.success).toBe(true);
+
+    const r1 = await request(server as any).post('/auth/refresh').set('Cookie', rc1).send();
+    const r2 = await request(server as any).post('/auth/refresh').set('Cookie', rc2).send();
+    expect([400, 401]).toContain(r1.status);
+    expect([400, 401]).toContain(r2.status);
+    expect(r1.body?.success).toBe(false);
+    expect(r2.body?.success).toBe(false);
   });
 });
 

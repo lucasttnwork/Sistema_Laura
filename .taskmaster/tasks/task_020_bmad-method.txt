@@ -1,0 +1,11 @@
+# Task ID: 20
+# Title: Build Workflow de Aprovacao
+# Status: pending
+# Dependencies: 19
+# Priority: high
+# Description: Implement hierarchical approval workflow based on purchase value with notifications.
+# Details:
+Define rules: Auto-approve <R$5000, Fiscal for R$5000-50000, Diretoria >R$50000. Backend: Automate workflow, send notifications. Frontend: Approval dashboard with history.
+
+# Test Strategy:
+Test approval flows for different values, verify notifications, and ensure history logging.

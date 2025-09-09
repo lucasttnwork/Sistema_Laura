@@ -1,0 +1,43 @@
+# Task ID: 3
+# Title: Setup Database Schema
+# Status: pending
+# Dependencies: 1
+# Priority: high
+# Description: Design and implement the PostgreSQL database schema using Prisma for tables related to works, suppliers, requests, quotations, approvals, and users.
+# Details:
+Define Prisma schema with models for User, Work, Supplier, Request, Quotation, Approval, etc. Include relationships and indexes for performance. Run migrations to create tables in local PostgreSQL via Docker. Ensure schema supports all RF requirements.
+
+# Test Strategy:
+Run Prisma migrations successfully, verify table creation in database, perform basic CRUD operations via Prisma Client.
+
+# Subtasks:
+## 1. Define Prisma Models and Relationships [pending]
+### Dependencies: None
+### Description: Create Prisma schema models for User, Work, Supplier, Request, Quotation, and Approval with appropriate fields and relationships.
+### Details:
+Define all required entities with foreign keys, cascading rules, and enum types. Ensure relationships reflect business logic (e.g., Request belongs to Work, Quotation belongs to Supplier and Request).
+
+## 2. Add Indexes and Performance Optimizations [pending]
+### Dependencies: 3.1
+### Description: Enhance schema with database indexes, unique constraints, and optimized field types for query performance.
+### Details:
+Add indexes on frequently queried fields (e.g., status, createdAt, userId). Use @map for PostgreSQL-specific column names if needed. Define composite indexes where applicable.
+
+## 3. Generate and Run Initial Migration [pending]
+### Dependencies: 3.2
+### Description: Generate Prisma migration files and apply them to local PostgreSQL instance running via Docker.
+### Details:
+Use `prisma migrate dev --name init` to generate and apply migration. Ensure Docker PostgreSQL container is running and accessible via configured connection string.
+
+## 4. Implement Seed Script for Core Data [pending]
+### Dependencies: 3.3
+### Description: Create seed script to populate essential reference data (e.g., roles, default users, sample works) for development and testing.
+### Details:
+Use Prisma Client in a seed script to insert initial records. Include at least one record per core model to enable integration testing.
+
+## 5. Validate Schema Against RF Requirements [pending]
+### Dependencies: 3.4
+### Description: Cross-check implemented schema against all RF (Requirement Framework) specifications to ensure full coverage.
+### Details:
+Map each RF requirement to corresponding model fields and relationships. Document any gaps and update schema if necessary.
+

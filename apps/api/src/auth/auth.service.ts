@@ -1,9 +1,13 @@
-import bcrypt from 'bcrypt';
+// Usamos require para evitar problemas de tipos em ambientes de build/lint
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const require: any;
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const bcrypt: { hash: (p: string, rounds: number) => Promise<string>; compare: (p: string, h: string) => Promise<boolean> } = require('bcryptjs');
 import { PrismaClient } from '@prisma/client';
-import { z } from 'zod';
 import { JWTService } from './jwt.service';
 import { getPermissionsByCargo, hasPermission, canApproveValue } from './permissions';
 import { Usuario, AuthResponse, Tokens, UserPermissions } from './types';
+import { logger } from '@bmad/observability';
 
 const prisma = new PrismaClient();
 
@@ -15,22 +19,40 @@ function normalizePhoneToE164(raw: string): string {
   return `+${digits}`;
 }
 
-// Schemas de validação
-export const LoginSchema = z.object({
-  whatsapp: z
-    .string()
-    .regex(/^\+?[1-9]\d{1,14}$/, 'Número deve estar no formato E.164 (com ou sem "+" de entrada)'),
-  password: z.string().min(1, 'Senha é obrigatória'),
-});
+// Validações simples (evita dependência de zod neste módulo)
+function ensureString(value: unknown, field: string): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`${field} é obrigatório`);
+  }
+  return value.trim();
+}
 
-export const RegisterSchema = z.object({
-  nome: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
-  cargo: z.string().min(2, 'Cargo é obrigatório'),
-  whatsapp: z
-    .string()
-    .regex(/^\+?[1-9]\d{1,14}$/, 'Número deve estar no formato E.164 (com ou sem "+" de entrada)'),
-  password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
-});
+function validateWhatsapp(raw: string): string {
+  const v = ensureString(raw, 'whatsapp');
+  const digits = v.replace(/[^\d+]/g, '');
+  const e164 = digits.startsWith('+') ? digits : `+${digits}`;
+  if (!/^\+?[1-9]\d{1,14}$/.test(e164)) {
+    throw new Error('Número deve estar no formato E.164 (com ou sem "+" de entrada)');
+  }
+  return e164;
+}
+
+function validateLogin(data: any): { whatsapp: string; password: string } {
+  const whatsapp = validateWhatsapp(data?.whatsapp);
+  const password = ensureString(data?.password, 'Senha');
+  return { whatsapp, password };
+}
+
+function validateRegister(data: any): { nome: string; cargo: string; whatsapp: string; password: string } {
+  const nome = ensureString(data?.nome, 'Nome');
+  if (nome.length < 2) throw new Error('Nome deve ter pelo menos 2 caracteres');
+  const cargo = ensureString(data?.cargo, 'Cargo');
+  if (cargo.length < 2) throw new Error('Cargo é obrigatório');
+  const whatsapp = validateWhatsapp(data?.whatsapp);
+  const password = ensureString(data?.password, 'Senha');
+  if (password.length < 8) throw new Error('Senha deve ter pelo menos 8 caracteres');
+  return { nome, cargo, whatsapp, password };
+}
 
 export class AuthService {
   /**
@@ -54,7 +76,7 @@ export class AuthService {
   static async register(data: any): Promise<AuthResponse> {
     try {
       // Validar dados
-      const validData = RegisterSchema.parse(data);
+      const validData = validateRegister(data);
       const normalizedWhatsapp = normalizePhoneToE164(validData.whatsapp);
 
       // Verificar se usuário já existe
@@ -88,6 +110,12 @@ export class AuthService {
       // Gerar tokens
       const tokens = await JWTService.generateTokens(user);
 
+      logger.info('auth.register.success', {
+        userId: user.id,
+        whatsapp: user.whatsapp,
+        cargo: user.cargo,
+      });
+
       return {
         success: true,
         user: {
@@ -101,10 +129,12 @@ export class AuthService {
         message: 'Usuário registrado com sucesso',
       };
     } catch (error: any) {
-      console.error('Erro no registro:', error);
+      logger.error('auth.register.error', {
+        error: error?.message || String(error),
+      });
       return {
         success: false,
-        error: error instanceof z.ZodError ? error.errors[0]?.message || 'Erro de validação' : 'Erro interno do servidor',
+        error: error?.message || 'Erro de validação',
       };
     }
   }
@@ -115,7 +145,7 @@ export class AuthService {
   static async login(data: any): Promise<AuthResponse> {
     try {
       // Validar dados
-      const validData = LoginSchema.parse(data);
+      const validData = validateLogin(data);
       const normalizedWhatsapp = normalizePhoneToE164(validData.whatsapp);
 
       // Buscar usuário
@@ -124,6 +154,7 @@ export class AuthService {
       });
 
       if (!user) {
+        logger.warn('auth.login.user_not_found', { whatsapp: normalizedWhatsapp });
         return {
           success: false,
           error: 'Usuário não encontrado',
@@ -132,6 +163,7 @@ export class AuthService {
 
       // Verificar se conta não está bloqueada
       if ((user as any).lockedUntil && new Date() < new Date((user as any).lockedUntil)) {
+        logger.warn('auth.login.account_locked', { userId: user.id });
         return {
           success: false,
           error: 'Conta temporariamente bloqueada por tentativas excessivas',
@@ -153,6 +185,12 @@ export class AuthService {
             loginAttempts,
             lockedUntil: shouldLock ? new Date(Date.now() + 30 * 60 * 1000) : null, // 30 min
           } as any,
+        });
+
+        logger.warn('auth.login.invalid_password', {
+          userId: user.id,
+          attempts: loginAttempts,
+          locked: shouldLock,
         });
 
         return {
@@ -179,6 +217,11 @@ export class AuthService {
       // Gerar tokens
       const tokens = await JWTService.generateTokens(user);
 
+      logger.info('auth.login.success', {
+        userId: user.id,
+        cargo: user.cargo,
+      });
+
       return {
         success: true,
         user: {
@@ -192,10 +235,10 @@ export class AuthService {
         message: 'Login realizado com sucesso',
       };
     } catch (error: any) {
-      console.error('Erro no login:', error);
+      logger.error('auth.login.error', { error: error?.message || String(error) });
       return {
         success: false,
-        error: error instanceof z.ZodError ? error.errors[0]?.message || 'Erro de validação' : 'Erro interno do servidor',
+        error: error?.message || 'Erro interno do servidor',
       };
     }
   }
@@ -206,12 +249,13 @@ export class AuthService {
   static async logout(refreshToken: string): Promise<AuthResponse> {
     try {
       const revoked = await JWTService.revokeRefreshToken(refreshToken);
+      logger.info('auth.logout', { revoked });
       return {
         success: revoked,
         message: revoked ? 'Logout realizado com sucesso' : 'Token inválido',
       };
     } catch (error) {
-      console.error('Erro no logout:', error);
+      logger.error('auth.logout.error', { error: (error as Error).message });
       return {
         success: false,
         message: 'Erro interno do servidor',
@@ -226,18 +270,20 @@ export class AuthService {
     try {
       const newTokens = await JWTService.refreshAccessToken(refreshToken);
       if (!newTokens) {
+        logger.warn('auth.refresh.failed');
         return {
           success: false,
           error: 'Refresh token inválido ou expirado',
         };
       }
+      logger.info('auth.refresh.success');
       return {
         success: true,
         tokens: newTokens,
         message: 'Token renovado com sucesso',
       };
     } catch (error) {
-      console.error('Erro ao renovar token:', error);
+      logger.error('auth.refresh.error', { error: (error as Error).message });
       return {
         success: false,
         error: 'Erro interno do servidor',

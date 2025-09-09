@@ -1,0 +1,61 @@
+# Task ID: 25
+# Title: Update Prisma Schema for Request-Quotation-Approval Flow
+# Status: pending
+# Dependencies: 3, 15
+# Priority: high
+# Description: Update the Prisma database schema to implement the Request→Quotation→Approval workflow as specified in the documentation, incorporating reversible migrations in two phases, standardized indexes, and enums for consistency and performance.
+# Details:
+Refer to the documentation in `.taskmaster/docs/fluxo-solicitacao-cotacao-aprovacao.md` for the detailed flow requirements. Phase 1: Analyze the current Prisma schema and plan updates for models such as Solicitacoes (Requests), Cotacoes (Quotations), and Approvals, ensuring proper relationships (e.g., Solicitacao links to Cotacao, Cotacao to Approval). Standardize enums for statuses (e.g., pending, approved, rejected) and add indexes on frequently queried fields like obra_id, fornecedor_id, and approval_value for performance. Implement reversible migrations using Prisma's migration system, allowing rollback if needed. Phase 2: Apply the schema changes, run migrations on the PostgreSQL database, and update any seed data if necessary. Ensure compatibility with existing models from previous schema tasks. Use Prisma Studio for visual validation of the schema. Consider edge cases like circular dependencies or data integrity during migrations.
+
+# Test Strategy:
+Validate the updated schema using Prisma Studio to confirm all models, relationships, enums, and indexes are correctly defined. Run Prisma migrations in a development environment and verify table creation/alterations in PostgreSQL. Perform CRUD operations on Solicitacoes, Cotacoes, and Approvals to ensure data integrity and relationship constraints. Test reversible migrations by applying and rolling back changes, checking for data loss or corruption. Execute queries with indexes to measure performance improvements. Document any issues and ensure the schema supports the full workflow without errors.
+
+# Subtasks:
+## 1. Fase 1: criar enums (SolicitacaoStatus, CotacaoStatus, AprovacaoStatus, HistoricoAcao, PagamentoTermo) [pending]
+### Dependencies: None
+### Description: Adicionar enums ao schema conforme .taskmaster/docs/fluxo-solicitacao-cotacao-aprovacao.md sem remover colunas antigas.
+### Details:
+
+
+## 2. Fase 1: adicionar colunas novas (quantidadeDec, valorUnitarioDec, valorTotalDec, prazoDias, pagamentoTermo) [pending]
+### Dependencies: None
+### Description: Adicionar campos decimais/inteiros mantendo os originais para compatibilidade.
+### Details:
+
+
+## 3. Fase 1: índices e constraints [pending]
+### Dependencies: None
+### Description: Criar @@unique([cotacaoId,userId]) em Aprovacao e @@index nos FKs e createdAt conforme doc.
+### Details:
+
+
+## 4. Fase 1: backfill de dados [pending]
+### Dependencies: None
+### Description: Popular novos campos a partir dos antigos (parse/convert) com script Prisma/SQL.
+### Details:
+
+
+## 5. Fase 1: atualizar app para usar novos campos/enums [pending]
+### Dependencies: None
+### Description: Alterar DTOs/serviços para ler/gravar campos novos e enums; manter fallback.
+### Details:
+
+
+## 6. Fase 2: substituir campos antigos pelos novos (Decimal/Int/Enums) [pending]
+### Dependencies: None
+### Description: Renomear colunas *_Dec para nomes finais, tornar enums obrigatórios e ajustar validações.
+### Details:
+
+
+## 7. Fase 2: remover redundância Cotacao.obraId e ajustar relações [pending]
+### Dependencies: None
+### Description: Remover obraId de Cotacao e referenciar obra via solicitacao.obra.
+### Details:
+
+
+## 8. Fase 2: atualizar app, testes e migração de dados finais [pending]
+### Dependencies: None
+### Description: Refatorar serviços/DTOs, ajustar cálculos de valorTotal, adicionar testes e scripts de verificação.
+### Details:
+
+

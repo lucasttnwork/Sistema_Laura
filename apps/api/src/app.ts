@@ -1,5 +1,5 @@
 import express from 'express';
-import { initTracing, registerDefaultMetrics, metricsRouter } from '@bmad/observability';
+import { initTracing, registerDefaultMetrics, metricsRouter, timingMiddleware } from '@bmad/observability';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
@@ -8,6 +8,7 @@ import { PrismaClient } from '@prisma/client';
 // import Redis from 'ioredis';
 import authRoutes from './auth/auth.routes';
 import { authenticateJWT, requirePermission } from './auth/auth.middleware';
+import { logger as baseLogger, createRequestLogger } from '@bmad/observability';
 
 // Inicializar tracing antes de outros imports/uso pesado de libs
 initTracing({ serviceName: 'bmad-api' });
@@ -56,6 +57,20 @@ app.use(generalLimiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// Middleware de requestId e logger por requisição
+app.use((req, _res, next) => {
+  const requestId = (req.headers['x-request-id'] as string) || `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  (req as any).requestId = requestId;
+  (req as any).logger = createRequestLogger(baseLogger, {
+    requestId,
+    userId: (req as any).user?.userId,
+  });
+  next();
+});
+
+// Métricas de tempo de requisição
+app.use(timingMiddleware());
 
 // CORS básico
 app.use((req, res, next) => {
@@ -282,8 +297,9 @@ app.post('/protected/cotacoes/:id/aprovar', authenticateJWT, requirePermission('
 });
 
 // Error handler
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Erro não tratado:', err);
+app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const reqLogger = (req as any).logger || baseLogger;
+  reqLogger.error('unhandled_error', { error: err.message, stack: err.stack });
   res.status(500).json({
     success: false,
     error: 'Erro interno do servidor',

@@ -310,3 +310,81 @@
 **Responsável pela Análise**: Desenvolvedor Principal
 **Próxima Revisão**: Semanal
 **Status**: Ativo - Revisar após cada milestone
+
+---
+
+## ✅ Atualizações Recentes de Mitigações
+
+- Risco mitigado: armazenamento de tokens em JSON → movido para tabela RefreshToken
+- Risco mitigado: senha no campo dedicado password
+
+---
+
+## 📌 Story QA: Refatorar Auth para Prisma (User + RefreshToken) — Opção B
+
+**Contexto**: Brownfield. Refatoração de sistema existente para usar Prisma com modelos `User` e `RefreshToken` separados. Tag: bmad-method. Task relacionada: 23.
+
+**Escopo**: Migração de autenticação baseada em JSON para estrutura relacional com bcrypt para senhas e tabela dedicada para refresh tokens.
+
+### Matriz Detalhada de Riscos
+
+| # | Risco | Probabilidade | Impacto | Mitigação | Evidência Esperada | Dono | Prioridade |
+|---|-------|---------------|---------|-----------|-------------------|------|------------|
+| **R1** | **Senhas em cleartext ou campo JSON inadequado** | Alta | Alto | • Hash com `bcryptjs` (sal automático)<br>• Campo dedicado `User.password`<br>• Remoção de campos legados<br>• Validação no service layer | • `schema.prisma` com `password String`<br>• Migration removendo campos antigos<br>• Testes verificando hash válido<br>• Service que sempre hasheia antes do save | Backend Dev | **Alta** |
+| **R2** | **Refresh tokens armazenados no modelo User (JSON)** | Alta | Alto | • Modelo `RefreshToken` separado<br>• FK `userId` com cascade<br>• Campos: `token`, `expiresAt`, `revokedAt`, `fingerprint`<br>• Hash do token no DB | • `schema.prisma` com modelo `RefreshToken`<br>• Migration criando tabela<br>• Tokens hasheados no storage<br>• Relação 1:N User→RefreshToken | Backend Dev | **Alta** |
+| **R3** | **Divergência schema.prisma ↔ tipos TypeScript** | Média-Alta | Alto | • Regeneração automática de tipos Prisma<br>• DTOs Zod alinhados com schema<br>• CI/CD validando tipos<br>• Interfaces consistentes | • Build sem erros de tipo<br>• `prisma generate` no CI<br>• Testes de integração passando<br>• DTOs validados com schema atual | Backend Dev | **Alta** |
+| **R4** | **Race conditions em refresh simultâneos** | Média | Médio-Alto | • Token versioning (`version` field)<br>• Update atômico com WHERE clause<br>• Retry logic com backoff<br>• Lock otimista via versioning | • Teste de concorrência (100 requests)<br>• Apenas 1 token válido após race<br>• Logs de conflito manejados<br>• Timeouts adequados implementados | Backend Dev | **Médio-Alto** |
+| **R5** | **Ausência de revogação em logout/troca senha** | Média | Alto | • Endpoint `/auth/logout` marca `revokedAt`<br>• Troca de senha revoga todos tokens<br>• Admin panel para revogação<br>• Cleanup de tokens expirados | • Endpoint funcionando<br>• Testes de logout/troca senha<br>• Tokens marcados como revogados<br>• Job de limpeza periódica | Backend Dev | **Alta** |
+| **R6** | **Replay attack com refresh token reutilizado** | Média | Alto | • Rotação automática (single-use)<br>• Campo `usedAt` para auditoria<br>• Detecção de reuso → revoke all<br>• Grace period para clock skew | • Teste: mesmo token usado 2x falha<br>• Segunda tentativa revoga sessões<br>• Logs de tentativa de reuso<br>• Grace period de 30s implementado | Backend Dev | **Alta** |
+| **R7** | **Políticas de expiração inadequadas** | Média | Médio | • Access token: 15min<br>• Refresh token: 7-30 dias<br>• Idle timeout: 2h inatividade<br>• Clock skew tolerance: 30s | • Config em `jwt.service.ts`<br>• Testes de expiração automática<br>• Métricas de duração de sessão<br>• Logs de timeouts | Backend Dev | **Médio** |
+| **R8** | **Vazamento de tokens/secrets nos logs** | Baixa-Média | Alto | • Logger com masking automático<br>• Regex para scrubbing de JWT<br>• Structured logging sem secrets<br>• Environment vars para keys | • Logs sem tokens visíveis<br>• Teste de logger com JWT<br>• Config de masking ativa<br>• Audit de logs em staging | DevOps | **Alta** |
+| **R9** | **Falta de constraints/índices no DB** | Média | Médio | • Unique index em (`userId`, `fingerprint`)<br>• Index em `expiresAt` para cleanup<br>• Foreign key constraints<br>• TTL policy para tokens expirados | • Migration com índices<br>• Performance de queries < 50ms<br>• Job de cleanup funcional<br>• Constraints validadas | Backend Dev | **Médio** |
+| **R10** | **Migração de dados legados falha** | Média | Médio-Alto | • Script idempotente de migração<br>• Dry-run obrigatório<br>• Backup automático pré-migração<br>• Rollback testado | • Script de migração executado<br>• Backup realizado<br>• Contagem antes/depois confere<br>• Rollback testado em staging | DevOps | **Médio-Alto** |
+| **R11** | **Performance degradada em queries de auth** | Baixa-Média | Médio | • Otimização de joins User↔RefreshToken<br>• Cache de validação (Redis)<br>• Pagination em cleanup jobs<br>• Monitoring de query time | • Queries auth < 100ms (p95)<br>• Cache hit rate > 80%<br>• Metrics via Prometheus<br>• Alertas para latência alta | Backend Dev | **Médio** |
+| **R12** | **Bypass de validação de middleware** | Baixa | Alto | • Middleware aplicado a todas rotas protegidas<br>• Whitelist explícita de rotas públicas<br>• Testes de autorização completos<br>• Code review obrigatório | • Todas rotas `/api/*` protegidas<br>• Testes E2E de autorização<br>• Code coverage > 90% em auth<br>• Security scan sem high/critical | Security Team | **Alta** |
+
+### Observações Técnicas
+
+**Persistência de Refresh Tokens**:
+- Modelo `RefreshToken` com campos: `id`, `userId`, `tokenHash`, `fingerprint`, `expiresAt`, `revokedAt`, `usedAt`, `createdAt`
+- Armazenar hash SHA-256 do token, não o token em plaintext
+- Fingerprint para dispositivo/browser único
+
+**User.password com bcrypt**:
+- Usar `bcryptjs` (não `bcrypt` nativo) para compatibilidade
+- Salt rounds: 12 (balanceio performance/segurança)
+- Validação sempre via service layer
+
+**Permissões derivadas por cargo no JWT**:
+- Claims JWT baseados em `User.role` do Prisma
+- Refresh atualiza claims se role mudou
+- Middleware valida permissões por endpoint
+
+**Fluxos Críticos**:
+1. **Login**: Valida senha → gera access+refresh → armazena RefreshToken hasheado
+2. **Refresh**: Valida token → verifica não revogado → rotaciona (invalida anterior)
+3. **Logout**: Marca `revokedAt` → response limpa cookies
+4. **Protegida**: Valida JWT → 200 se válido, 401 se inválido/expirado
+5. **Refresh revogado/expirado**: 401 com erro específico → força re-login
+
+### Evidências de Implementação por Risco
+
+**Links para Documentação**:
+- NFR de Segurança: `.taskmaster/docs/nfr-auth.md`
+- Test Architecture: `.taskmaster/docs/test-architect-auth.md`
+- Gates de Qualidade: `.taskmaster/docs/gates.md`
+
+**Evidências devem incluir**:
+- PRs com implementação + testes
+- Screenshots de testes passando
+- Logs de execução sem secrets
+- Métricas de performance coletadas
+- Security scan reports
+
+**Responsabilidades**:
+- **Backend Dev**: Implementação core, testes unitários/integração
+- **DevOps**: Pipelines, monitoring, backup/recovery
+- **Security Team**: Review de segurança, penetration testing
+- **QA**: Testes E2E, validação de fluxos de usuário
+
+**Critério de Aceite Global**: Todos os riscos de prioridade **Alta** devem ter evidências implementadas antes do merge para produção.

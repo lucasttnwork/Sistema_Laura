@@ -1,0 +1,11 @@
+# Task ID: 21
+# Title: Develop Dashboards and Relatorios
+# Status: pending
+# Dependencies: 20
+# Priority: medium
+# Description: Create executive dashboard with real-time metrics, charts, and exportable reports.
+# Details:
+Frontend: Use charts for solicitacoes status, top fornecedores. Backend: Aggregate data for metrics. Implement export to Excel/PDF. Real-time updates via polling or websockets.
+
+# Test Strategy:
+Validate metric calculations, test chart rendering, and verify export functionality.

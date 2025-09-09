@@ -1,0 +1,43 @@
+# Task ID: 6
+# Title: Create Material Request System
+# Status: pending
+# Dependencies: 4
+# Priority: medium
+# Description: Implement the interface for creating material requests linked to works, with file uploads and validation.
+# Details:
+Develop React form with fields for request details, file upload to Supabase Storage. Backend API to save requests with status 'Pendente'. Integrate with material catalog. Use React Hook Form for validation.
+
+# Test Strategy:
+Submit requests with attachments, verify validation, check data storage and retrieval.
+
+# Subtasks:
+## 1. Design and implement React form with React Hook Form [pending]
+### Dependencies: None
+### Description: Create a form component using React Hook Form for material request input fields including work selection, material catalog integration, and validation rules.
+### Details:
+Use Zod for schema validation. Integrate with Shadcn/ui components for consistent styling. Ensure form resets after submission.
+
+## 2. Implement file upload to Supabase Storage [pending]
+### Dependencies: 6.1
+### Description: Add file upload functionality to the material request form, allowing users to attach supporting documents stored in Supabase Storage.
+### Details:
+Use Supabase client SDK to handle file uploads. Generate unique file names and store file URLs in the request payload. Show upload progress and handle errors gracefully.
+
+## 3. Develop backend API endpoint to save material requests [pending]
+### Dependencies: 6.1, 6.2
+### Description: Create an Express.js API endpoint to receive and persist material requests with initial status 'Pendente' using Prisma ORM.
+### Details:
+Validate incoming payload with Zod. Associate requests with works and users. Store file URLs and metadata. Return success/error responses.
+
+## 4. Integrate material catalog into request form [pending]
+### Dependencies: 6.1
+### Description: Connect the material request form to the material catalog API to allow users to select materials with auto-complete or dropdown.
+### Details:
+Fetch catalog data on form load or search. Display material names, codes, and units. Ensure selected materials are included in the request payload.
+
+## 5. Connect frontend form submission to backend API [pending]
+### Dependencies: 6.1, 6.2, 6.3, 6.4
+### Description: Wire the React form to call the backend API endpoint upon submission, handle loading states, and display success/error feedback.
+### Details:
+Use React Query for mutation handling. Show loading indicators during submission. Redirect or reset form on success. Display server errors to user.
+

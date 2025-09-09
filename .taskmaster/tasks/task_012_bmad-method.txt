@@ -1,0 +1,43 @@
+# Task ID: 12
+# Title: Testing, Optimization, and Deployment
+# Status: pending
+# Dependencies: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
+# Priority: high
+# Description: Perform testing, optimize performance, and deploy to production.
+# Details:
+Write unit/integration tests (>80% coverage). Optimize queries, add caching with Redis. Configure Railway for production. Ensure uptime and security.
+
+# Test Strategy:
+Run tests, perform load testing, verify deployment, monitor performance metrics.
+
+# Subtasks:
+## 1. Write Unit and Integration Tests [pending]
+### Dependencies: None
+### Description: Develop comprehensive unit and integration tests to achieve >80% code coverage across all modules.
+### Details:
+Use Jest and Supertest for backend testing. Mock external services like WhatsApp and Redis. Cover all critical paths including authentication, approval workflows, supplier management, and works module.
+
+## 2. Optimize Database Queries and Implement Redis Caching [pending]
+### Dependencies: 12.1
+### Description: Identify slow queries and optimize them. Integrate Redis to cache frequently accessed data such as supplier lists, approval rules, and work statuses.
+### Details:
+Use Prisma query logging to find bottlenecks. Add indexes where needed. Implement Redis caching layer with TTL policies. Cache results of expensive operations like approval rule evaluations and supplier performance histories.
+
+## 3. Configure Railway for Production Deployment [pending]
+### Dependencies: 12.2
+### Description: Set up Railway environment with required services (PostgreSQL, Redis, BullMQ), environment variables, and deployment pipelines.
+### Details:
+Define Railway project structure. Configure health checks, logging, and secrets. Automate deployment via GitHub Actions. Set up staging and production environments with appropriate scaling.
+
+## 4. Ensure Uptime and Implement Monitoring [pending]
+### Dependencies: 12.3
+### Description: Configure uptime monitoring, alerts, and performance dashboards to ensure system reliability post-deployment.
+### Details:
+Integrate with Railway’s built-in monitoring or external tools like UptimeRobot. Set up Slack/email alerts for downtime or high latency. Monitor CPU, memory, and error rates. Log all critical errors to a centralized system.
+
+## 5. Conduct Security Audit and Harden Production Environment [pending]
+### Dependencies: 12.4
+### Description: Perform final security checks including JWT validation, rate limiting, input sanitization, and dependency vulnerability scanning.
+### Details:
+Audit all API endpoints for RBAC enforcement. Enable CORS policies. Scan npm dependencies with `npm audit` or Snyk. Ensure secrets are never hardcoded. Validate all Zod schemas are enforced in production.
+
