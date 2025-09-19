@@ -1,0 +1,67 @@
+name: dashboard-lighthouse
+
+on:
+  pull_request:
+    paths:
+      - "apps/dashboard/**"
+      - "packages/**"
+      - "scripts/**"
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - ".github/workflows/dashboard-lh.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/dashboard/**"
+      - "packages/**"
+      - "scripts/**"
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - ".github/workflows/dashboard-lh.yml"
+
+jobs:
+  lighthouse:
+    name: Lighthouse CI
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm -w install --frozen-lockfile
+
+      - name: Build dashboard
+        run: pnpm --filter @bmad/dashboard build
+
+      - name: Clean previous Lighthouse reports
+        run: |
+          rm -rf apps/dashboard/lh-report
+          mkdir -p apps/dashboard/lh-report
+
+      - name: Run Lighthouse (desktop + mobile)
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @bmad/dashboard lighthouse:all | tee apps/dashboard/lhci-output.log
+
+      - name: Upload Lighthouse artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-lighthouse-reports
+          path: |
+            apps/dashboard/lh-report
+            apps/dashboard/lhci-output.log

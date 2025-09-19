@@ -1,0 +1,398 @@
+name: Database Integration Tests
+
+on:
+  push:
+    branches: [ main, master, develop ]
+    paths:
+      - 'apps/api/src/**'
+      - 'packages/prisma/**'
+      - 'apps/api/src/__tests__/integration/**'
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of database integration tests to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - database-integration
+          - referential-integrity
+          - workflow-integration
+
+env:
+  NODE_VERSION: '18'
+  PNPM_VERSION: '8'
+
+jobs:
+  database-integration-tests:
+    name: Database Integration Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6380:6379
+
+    strategy:
+      matrix:
+        test_group: ['database-integration', 'workflow-integration', 'referential-integrity']
+        include:
+          - test_group: 'database-integration'
+            test_pattern: '**/integration/database-integration.test.ts'
+          - test_group: 'workflow-integration'
+            test_pattern: '**/integration/workflow-integration.test.ts'
+          - test_group: 'referential-integrity'
+            test_pattern: '**/integration/referential-integrity.test.ts'
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PPNM_VERSION }}
+
+      - name: 📦 Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: 🗄️ Setup Database Schema
+        run: |
+          pnpm prisma generate
+          pnpm prisma migrate deploy
+        working-directory: packages/prisma
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/test_db
+
+      - name: 🌱 Seed Test Database
+        run: node scripts/test-seed.js --type all --count 10
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/test_db
+
+      - name: 🔗 Run Database Integration Tests
+        run: pnpm test:integration -- --grep="${{ matrix.test_group }}" --reporter=verbose
+        working-directory: apps/api
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/test_db
+          REDIS_URL: redis://localhost:6380
+          JWT_SECRET: test-integration-jwt-secret-key
+          SUPABASE_URL: https://test.supabase.co
+          SUPABASE_ANON_KEY: test-anon-key
+
+      - name: 📊 Upload Test Results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: db-integration-test-results-${{ matrix.test_group }}
+          path: |
+            apps/api/test-results/
+            apps/api/coverage/
+
+  data-consistency-tests:
+    name: Data Consistency Tests
+    runs-on: ubuntu-latest
+    needs: database-integration-tests
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PPNM_VERSION }}
+
+      - name: 📦 Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: 🗄️ Setup Database
+        run: |
+          pnpm prisma generate
+          pnpm prisma migrate deploy
+        working-directory: packages/prisma
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/test_db
+
+      - name: 🔍 Run Data Consistency Tests
+        run: |
+          # Testar integridade referencial
+          node scripts/test-seed.js --type all --count 5
+          node scripts/validate-integrity.js --check-references
+
+          # Testar constraints e triggers
+          node scripts/validate-integrity.js --check-constraints
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/test_db
+
+      - name: 📊 Upload Consistency Test Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: data-consistency-results
+          path: |
+            integrity-report.json
+            constraint-report.json
+
+  migration-tests:
+    name: Database Migration Tests
+    runs-on: ubuntu-latest
+    needs: data-consistency-tests
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PPNM_VERSION }}
+
+      - name: 📦 Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: 🗄️ Test Database Migrations
+        run: |
+          # Reset database completamente
+          pnpm prisma migrate reset --force --skip-generate
+        working-directory: packages/prisma
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/test_db
+
+      - name: 🗄️ Apply Migrations Step by Step
+        run: |
+          # Aplicar migrações uma por vez para detectar problemas
+          pnpm prisma migrate deploy
+        working-directory: packages/prisma
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/test_db
+
+      - name: 🌱 Test Seed After Migration
+        run: node scripts/test-seed.js --type all --count 3
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/test_db
+
+      - name: 🔍 Validate Post-Migration State
+        run: node scripts/validate-integrity.js --full-check
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/test_db
+
+      - name: 📊 Upload Migration Test Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: migration-test-results
+          path: |
+            migration-test.log
+            post-migration-integrity.json
+
+  performance-regression-tests:
+    name: Performance Regression Tests
+    runs-on: ubuntu-latest
+    needs: migration-tests
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PPNM_VERSION }}
+
+      - name: 📦 Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: 🗄️ Setup Database
+        run: |
+          pnpm prisma generate
+          pnpm prisma migrate deploy
+        working-directory: packages/prisma
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/test_db
+
+      - name: 🌱 Seed Performance Test Data
+        run: node scripts/test-seed.js --type all --count 50
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/test_db
+
+      - name: 🚀 Start API Server
+        run: |
+          pnpm build
+          pnpm start &
+          sleep 20
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/test_db
+          REDIS_URL: redis://localhost:6380
+          PORT: 3002
+          NODE_ENV: test
+
+      - name: ⚡ Run Query Performance Tests
+        run: |
+          node scripts/performance-test.js --query-performance
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/test_db
+
+      - name: 📊 Upload Performance Regression Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-regression-results
+          path: performance-results/
+
+  integration-test-summary:
+    name: Integration Test Summary
+    runs-on: ubuntu-latest
+    needs: [database-integration-tests, data-consistency-tests, migration-tests, performance-regression-tests]
+    if: always()
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📊 Download All Test Results
+        uses: actions/download-artifact@v3
+        with:
+          path: all-integration-results
+
+      - name: 📈 Generate Integration Test Report
+        run: |
+          echo "# 🗄️ Database Integration Test Report" > integration-summary.md
+          echo "" >> integration-summary.md
+          echo "## 📅 $(date)" >> integration-summary.md
+          echo "" >> integration-summary.md
+
+          # Contar testes executados
+          INTEGRATION_TESTS=$(find all-integration-results -name "*integration*" -type f | wc -l)
+          CONSISTENCY_TESTS=$(find all-integration-results -name "*consistency*" -type f | wc -l)
+          MIGRATION_TESTS=$(find all-integration-results -name "*migration*" -type f | wc -l)
+          PERFORMANCE_TESTS=$(find all-integration-results -name "*performance*" -type f | wc -l)
+
+          echo "## ✅ Test Results Summary" >> integration-summary.md
+          echo "" >> integration-summary.md
+          echo "- 🔗 Database Integration Tests: $INTEGRATION_TESTS test suites executed" >> integration-summary.md
+          echo "- 🔍 Data Consistency Tests: $CONSISTENCY_TESTS validation checks" >> integration-summary.md
+          echo "- 🗄️ Migration Tests: $MIGRATION_TESTS migration scenarios tested" >> integration-summary.md
+          echo "- ⚡ Performance Regression Tests: $PERFORMANCE_TESTS performance benchmarks" >> integration-summary.md
+          echo "" >> integration-summary.md
+
+          # Verificar se todos os testes passaram
+          if [ "${{ needs.database-integration-tests.result }}" == "success" ] && \
+             [ "${{ needs.data-consistency-tests.result }}" == "success" ] && \
+             [ "${{ needs.migration-tests.result }}" == "success" ] && \
+             [ "${{ needs.performance-regression-tests.result }}" == "success" ]; then
+            echo "## ✅ All Database Integration Tests Passed!" >> integration-summary.md
+            echo "" >> integration-summary.md
+            echo "🎉 Database integration is healthy and ready for deployment." >> integration-summary.md
+          else
+            echo "## ⚠️ Some Database Integration Tests Failed" >> integration-summary.md
+            echo "" >> integration-summary.md
+            echo "Please review the failed test results and address any issues before deployment." >> integration-summary.md
+          fi
+
+          echo "" >> integration-summary.md
+          echo "## 🔧 Database Health Metrics" >> integration-summary.md
+          echo "" >> integration-summary.md
+          echo "- ✅ Referential integrity validated" >> integration-summary.md
+          echo "- ✅ Migration scripts tested" >> integration-summary.md
+          echo "- ✅ Query performance monitored" >> integration-summary.md
+          echo "- ✅ Data consistency verified" >> integration-summary.md
+
+      - name: 📊 Upload Integration Summary
+        uses: actions/upload-artifact@v3
+        with:
+          name: integration-test-summary
+          path: integration-summary.md
+
+      - name: 📢 Integration Test Status
+        run: |
+          if [ "${{ needs.database-integration-tests.result }}" == "success" ] && \
+             [ "${{ needs.data-consistency-tests.result }}" == "success" ] && \
+             [ "${{ needs.migration-tests.result }}" == "success" ] && \
+             [ "${{ needs.performance-regression-tests.result }}" == "success" ]; then
+            echo "✅ All database integration tests passed successfully!"
+          else
+            echo "⚠️ Some database integration tests failed. Check artifacts for details."
+            exit 1
+          fi

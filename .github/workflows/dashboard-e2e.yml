@@ -1,0 +1,79 @@
+name: dashboard-e2e
+
+on:
+  pull_request:
+    paths:
+      - "apps/dashboard/**"
+      - "packages/**"
+      - "scripts/**"
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - ".github/workflows/dashboard-e2e.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/dashboard/**"
+      - "packages/**"
+      - "scripts/**"
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - ".github/workflows/dashboard-e2e.yml"
+
+jobs:
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+
+    env:
+      PLAYWRIGHT_TEST_BASE_URL: http://127.0.0.1:3001
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm -w install --frozen-lockfile
+
+      - name: Type-check dashboard
+        run: pnpm --filter @bmad/dashboard type-check
+
+      - name: Build dashboard
+        run: pnpm --filter @bmad/dashboard build
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @bmad/dashboard exec playwright install --with-deps
+
+      - name: Run Playwright E2E tests
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: pnpm --filter @bmad/dashboard test:playwright -- --project=chromium
+
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-playwright-report
+          path: apps/dashboard/playwright-report
+
+      - name: Upload JUnit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-playwright-junit
+          path: apps/dashboard/test-results
+
+
+

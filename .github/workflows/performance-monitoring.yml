@@ -1,0 +1,405 @@
+name: Performance Monitoring
+
+on:
+  schedule:
+    # Executar toda segunda-feira às 9:00 UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to test'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      full_suite:
+        description: 'Run full performance suite'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  NODE_VERSION: '18'
+  PNPM_VERSION: '8'
+
+jobs:
+  performance-baseline:
+    name: Performance Baseline
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6380:6379
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PPNM_VERSION }}
+
+      - name: 📦 Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: 🗄️ Setup Database
+        run: |
+          pnpm prisma generate
+          pnpm prisma migrate deploy
+        working-directory: packages/prisma
+
+      - name: 🌱 Seed Test Data
+        run: node scripts/test-seed.js --type all --count 15
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/test_db
+
+      - name: 🚀 Start Application
+        run: |
+          pnpm build
+          pnpm start &
+          sleep 30
+        working-directory: apps/dashboard
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3002
+
+      - name: 🚀 Start API Server
+        run: |
+          pnpm build
+          pnpm start &
+          sleep 30
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/test_db
+          REDIS_URL: redis://localhost:6380
+          PORT: 3002
+
+      - name: 📊 Lighthouse Performance Audit (Desktop)
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          urls: |
+            http://localhost:3000
+            http://localhost:3000/dashboard
+            http://localhost:3000/login
+            http://localhost:3000/obras
+          configPath: .lighthouserc.desktop.json
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+      - name: 📊 Lighthouse Performance Audit (Mobile)
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          urls: |
+            http://localhost:3000
+            http://localhost:3000/dashboard
+          configPath: .lighthouserc.mobile.json
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+      - name: 📈 Performance Regression Test
+        run: |
+          npm install -g lighthouse
+          node scripts/performance-test.js --lighthouse --mobile
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+
+      - name: 📊 Upload Performance Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-monitoring-results
+          path: |
+            .lighthouseci/
+            performance-results/
+
+  load-testing:
+    name: Load Testing
+    runs-on: ubuntu-latest
+    needs: performance-baseline
+    if: ${{ github.event.inputs.full_suite == 'true' || github.event_name == 'schedule' }}
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6380:6379
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PPNM_VERSION }}
+
+      - name: 📦 Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: 🗄️ Setup Database
+        run: |
+          pnpm prisma generate
+          pnpm prisma migrate deploy
+        working-directory: packages/prisma
+
+      - name: 🌱 Seed Test Data
+        run: node scripts/test-seed.js --type all --count 20
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/test_db
+
+      - name: 🚀 Start Application (Load Test)
+        run: |
+          pnpm build
+          pnpm start &
+          sleep 30
+        working-directory: apps/dashboard
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3002
+
+      - name: 🚀 Start API Server (Load Test)
+        run: |
+          pnpm build
+          pnpm start &
+          sleep 30
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/test_db
+          REDIS_URL: redis://localhost:6380
+          PORT: 3002
+
+      - name: ⚡ Artillery Load Testing
+        run: |
+          npm install -g artillery
+          artillery run --config .artilleryrc.yml --output load-test-results.json
+        env:
+          CI: true
+
+      - name: 📊 Process Load Test Results
+        run: |
+          node -e "
+          const results = require('./load-test-results.json');
+          const summary = results.aggregate;
+          console.log('=== LOAD TEST SUMMARY ===');
+          console.log(\`Total Requests: \${summary.counters['http.requests']}\`);
+          console.log(\`Response Time (median): \${summary.summaries['http.response_time'].median}ms\`);
+          console.log(\`Response Time (95th percentile): \${summary.summaries['http.response_time'].p95}ms\`);
+          console.log(\`Request Rate: \${summary.rates['http.request_rate']} req/sec\`);
+          console.log(\`Error Rate: \${(summary.counters['http.errors'] || 0) / summary.counters['http.requests'] * 100}%\`);
+          "
+
+      - name: 📊 Upload Load Test Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: load-test-results
+          path: load-test-results.json
+
+  memory-leak-detection:
+    name: Memory Leak Detection
+    runs-on: ubuntu-latest
+    needs: performance-baseline
+    if: ${{ github.event.inputs.full_suite == 'true' || github.event_name == 'schedule' }}
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PPNM_VERSION }}
+
+      - name: 📦 Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: 🚀 Build Application
+        run: pnpm build
+        working-directory: apps/dashboard
+
+      - name: 🚀 Start Application (Memory Test)
+        run: |
+          pnpm start &
+          sleep 20
+        working-directory: apps/dashboard
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3002
+
+      - name: 🧠 Memory Leak Test
+        run: node scripts/performance-test.js --memory-test
+
+      - name: 📊 Upload Memory Test Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: memory-test-results
+          path: performance-results/
+
+  bundle-analysis:
+    name: Bundle Analysis
+    runs-on: ubuntu-latest
+    needs: performance-baseline
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PPNM_VERSION }}
+
+      - name: 📦 Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: 📊 Bundle Analysis
+        run: node scripts/performance-test.js --bundle-analysis
+
+      - name: 📊 Upload Bundle Analysis
+        uses: actions/upload-artifact@v3
+        with:
+          name: bundle-analysis-results
+        path: performance-results/
+
+  performance-report:
+    name: Performance Report
+    runs-on: ubuntu-latest
+    needs: [performance-baseline, load-testing, memory-leak-detection, bundle-analysis]
+    if: always()
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📊 Download All Performance Results
+        uses: actions/download-artifact@v3
+        with:
+          path: all-performance-results
+
+      - name: 📈 Generate Performance Report
+        run: |
+          echo "# 📊 Performance Monitoring Report" > performance-report.md
+          echo "" >> performance-report.md
+          echo "## 📅 $(date)" >> performance-report.md
+          echo "" >> performance-report.md
+          echo "## 🎯 Key Metrics" >> performance-report.md
+          echo "" >> performance-report.md
+
+          # Lighthouse Scores
+          if [ -d "all-performance-results/performance-monitoring-results" ]; then
+            echo "### Lighthouse Performance" >> performance-report.md
+            echo "- Desktop Score: Check artifacts for detailed scores" >> performance-report.md
+            echo "- Mobile Score: Check artifacts for detailed scores" >> performance-report.md
+            echo "" >> performance-report.md
+          fi
+
+          # Load Test Results
+          if [ -f "all-performance-results/load-test-results/load-test-results.json" ]; then
+            REQUESTS=$(jq '.aggregate.counters["http.requests"]' all-performance-results/load-test-results/load-test-results.json)
+            RESPONSE_TIME=$(jq '.aggregate.summaries["http.response_time"].median' all-performance-results/load-test-results/load-test-results.json)
+            REQUEST_RATE=$(jq '.aggregate.rates["http.request_rate"]' all-performance-results/load-test-results/load-test-results.json)
+
+            echo "### Load Testing Results" >> performance-report.md
+            echo "- Total Requests: $REQUESTS" >> performance-report.md
+            echo "- Median Response Time: ${RESPONSE_TIME}ms" >> performance-report.md
+            echo "- Request Rate: ${REQUEST_RATE} req/sec" >> performance-report.md
+            echo "" >> performance-report.md
+          fi
+
+          # Recommendations
+          echo "## 💡 Recommendations" >> performance-report.md
+          echo "" >> performance-report.md
+          echo "- Monitor Lighthouse scores weekly" >> performance-report.md
+          echo "- Review memory usage patterns" >> performance-report.md
+          echo "- Optimize bundle size for better performance" >> performance-report.md
+          echo "- Consider CDN for static assets" >> performance-report.md
+          echo "" >> performance-report.md
+
+          # Performance Trends
+          echo "## 📈 Performance Trends" >> performance-report.md
+          echo "" >> performance-report.md
+          echo "- Track changes in Lighthouse scores over time" >> performance-report.md
+          echo "- Monitor memory usage for potential leaks" >> performance-report.md
+          echo "- Analyze bundle size growth" >> performance-report.md
+          echo "" >> performance-report.md
+
+      - name: 📊 Upload Performance Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-report
+          path: performance-report.md
+
+      - name: 📢 Performance Alert
+        if: failure()
+        run: |
+          echo "🚨 PERFORMANCE REGRESSION DETECTED!" >> performance-alert.md
+          echo "" >> performance-alert.md
+          echo "Performance tests have failed. Please review the results and address any regressions." >> performance-alert.md
+          echo "" >> performance-alert.md
+          echo "Check the artifacts for detailed performance metrics." >> performance-alert.md
+
+      - name: 📢 Upload Performance Alert
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-alert
+          path: performance-alert.md
+
+      - name: 🎯 Performance Status
+        run: |
+          if [ ${{ job.status }} == "success" ]; then
+            echo "✅ All performance tests passed!"
+          else
+            echo "⚠️ Some performance tests failed. Check artifacts for details."
+          fi

@@ -1,54 +1,48 @@
 {
-  "name": "bmad",
-  "private": true,
-  "version": "0.1.0",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
-  "scripts": {
-    "dev": "npx turbo run dev --parallel",
-    "build": "npx turbo run build",
-    "lint": "npx turbo run lint",
-    "lint:fix": "npx turbo run lint:fix",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "type-check": "npx turbo run type-check",
-    "test": "npx turbo run test",
-    "test:coverage": "npx turbo run test:coverage",
-    "clean": "npx turbo run clean && rm -rf node_modules/.cache",
-    "prepare": "husky install",
-    "docker:up": "docker compose up -d",
-    "docker:down": "docker compose down -v",
-    "docker:logs": "docker compose logs -f --tail=100",
-    "docker:ps": "docker compose ps",
-    "prisma:generate": "npx turbo run generate --filter=@bmad/prisma",
-    "prisma:migrate": "npx turbo run migrate --filter=@bmad/prisma",
-    "prisma:studio": "npx turbo run studio --filter=@bmad/prisma",
-    "seed": "npx turbo run seed --filter=@bmad/prisma",
-    "db:reset": "npx turbo run reset --filter=@bmad/prisma",
-    "check-integrity": "node scripts/validate-integrity.js",
-    "validate": "npm run check-integrity",
-    "setup": "bash scripts/setup.sh"
-  },
-  "engines": {
-    "node": ">=18.18.0"
-  },
-  "packageManager": "pnpm@9",
-  "devDependencies": {
-    "@commitlint/cli": "^18.4.3",
-    "@commitlint/config-conventional": "^18.4.3",
-    "@typescript-eslint/eslint-plugin": "^6.21.0",
-    "@typescript-eslint/parser": "^6.21.0",
-    "eslint": "^8.57.1",
-    "eslint-config-prettier": "^9.1.2",
-    "eslint-plugin-import": "^2.32.0",
-    "eslint-plugin-unused-imports": "^3.2.0",
-    "husky": "^8.0.3",
-    "lint-staged": "^15.1.0",
-    "prettier": "^3.1.0",
-    "tsx": "^4.20.5",
-    "turbo": "^1.11.2",
-    "typescript": "^5.9.2"
-  }
+    "name":  "bmad",
+    "private":  true,
+    "version":  "0.1.0",
+    "workspaces":  [
+                       "apps/*"
+                   ],
+    "scripts":  {
+                    "dev":  "pnpm --filter @bmad/dashboard dev",
+    "build":  "pnpm --filter @bmad/dashboard build",
+    "preview":  "pnpm --filter @bmad/dashboard preview",
+    "lint":  "pnpm --filter @bmad/dashboard lint",
+    "lint:fix":  "pnpm --filter @bmad/dashboard lint:fix",
+                    "format":  "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+                    "format:check":  "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+                    "type-check":  "pnpm --filter @bmad/dashboard type-check",
+                    "test":  "pnpm --filter @bmad/dashboard test:playwright",
+                    "clean":  "pnpm --filter @bmad/dashboard clean && rm -rf node_modules/.cache",
+                    "prepare":  "husky install",
+                    "test:dashboard:playwright":  "pnpm --filter @bmad/dashboard test:playwright",
+                    "test:dashboard:type-check":  "pnpm --filter @bmad/dashboard type-check"
+                },
+    "engines":  {
+                    "node":  "\u003e=18.18.0"
+                },
+    "packageManager":  "pnpm@9",
+    "devDependencies":  {
+                            "@commitlint/cli":  "^18.4.3",
+                            "@commitlint/config-conventional":  "^18.4.3",
+                            "@playwright/mcp":  "^0.0.37",
+                            "@supabase/mcp-server-supabase":  "^0.5.4",
+                            "@typescript-eslint/eslint-plugin":  "^6.21.0",
+                            "@typescript-eslint/parser":  "^6.21.0",
+                            "eslint":  "^8.57.1",
+                            "eslint-config-prettier":  "^9.1.2",
+                            "eslint-plugin-import":  "^2.32.0",
+                            "eslint-plugin-unused-imports":  "^3.2.0",
+                            "husky":  "^8.0.3",
+                            "lint-staged":  "^15.1.0",
+                            "pg":  "8.11.5",
+                            "playwright":  "^1.55.0",
+                            "prettier":  "^3.1.0",
+                            "tsx":  "^4.20.5",
+                            "turbo":  "^1.11.2",
+                            "typescript":  "^5.9.2"
+                        },
+    "dependencies":  {}
 }

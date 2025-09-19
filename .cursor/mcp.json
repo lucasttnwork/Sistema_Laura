@@ -9,15 +9,35 @@
       ],
       "disabled": false
     },
-    "BMAD-METHOD Docs": {
-      "url": "https://gitmcp.io/bmad-code-org/BMAD-METHOD"
-    },
     "github": {
       "command": "npx",
       "args": [
         "-y",
         "@modelcontextprotocol/server-github"
       ],
+      "disabled": false
+    },
+    "playwright": {
+      "command": "node",
+      "args": [
+        "node_modules/@playwright/mcp/cli.js"
+      ],
+      "disabled": false
+    },
+    "supabase": {
+      "command": "node",
+      "args": [
+        "node_modules/@supabase/mcp-server-supabase/dist/transports/stdio.js",
+        "--project-ref",
+        "jvodifqclckzqnvinmpj",
+        "--features",
+        "database,debugging,development,docs,functions,branching,storage",
+        "--access-token",
+        "sbp_7d55905ae203899bbbf501a44ce6ba2946b56296"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "sbp_7d55905ae203899bbbf501a44ce6ba2946b56296"
+      },
       "disabled": false
     }
   }

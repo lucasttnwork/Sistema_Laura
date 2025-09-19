@@ -1,0 +1,258 @@
+[
+  {
+    "name": "minScore",
+    "expected": 0.85,
+    "actual": 0.82,
+    "values": [
+      0.82,
+      0.82,
+      0.82
+    ],
+    "operator": ">=",
+    "passed": false,
+    "auditProperty": "best-practices",
+    "auditId": "categories",
+    "level": "warn",
+    "url": "http://localhost:4173/"
+  },
+  {
+    "name": "minScore",
+    "expected": 0.85,
+    "actual": 0.82,
+    "values": [
+      0.82,
+      0.82,
+      0.82
+    ],
+    "operator": ">=",
+    "passed": false,
+    "auditProperty": "seo",
+    "auditId": "categories",
+    "level": "warn",
+    "url": "http://localhost:4173/"
+  },
+  {
+    "name": "minScore",
+    "expected": 0.85,
+    "actual": 0.82,
+    "values": [
+      0.82,
+      0.82,
+      0.82
+    ],
+    "operator": ">=",
+    "passed": false,
+    "auditProperty": "best-practices",
+    "auditId": "categories",
+    "level": "warn",
+    "url": "http://localhost:4173/login"
+  },
+  {
+    "name": "minScore",
+    "expected": 0.85,
+    "actual": 0.82,
+    "values": [
+      0.82,
+      0.82,
+      0.82
+    ],
+    "operator": ">=",
+    "passed": false,
+    "auditProperty": "seo",
+    "auditId": "categories",
+    "level": "warn",
+    "url": "http://localhost:4173/login"
+  },
+  {
+    "name": "minScore",
+    "expected": 0.85,
+    "actual": 0.82,
+    "values": [
+      0.82,
+      0.82,
+      0.82
+    ],
+    "operator": ">=",
+    "passed": false,
+    "auditProperty": "best-practices",
+    "auditId": "categories",
+    "level": "warn",
+    "url": "http://localhost:4173/solicitacoes"
+  },
+  {
+    "name": "minScore",
+    "expected": 0.85,
+    "actual": 0.82,
+    "values": [
+      0.82,
+      0.82,
+      0.82
+    ],
+    "operator": ">=",
+    "passed": false,
+    "auditProperty": "seo",
+    "auditId": "categories",
+    "level": "warn",
+    "url": "http://localhost:4173/solicitacoes"
+  },
+  {
+    "name": "minScore",
+    "expected": 0.85,
+    "actual": 0.82,
+    "values": [
+      0.82,
+      0.82,
+      0.82
+    ],
+    "operator": ">=",
+    "passed": false,
+    "auditProperty": "best-practices",
+    "auditId": "categories",
+    "level": "warn",
+    "url": "http://localhost:4173/obras"
+  },
+  {
+    "name": "minScore",
+    "expected": 0.85,
+    "actual": 0.82,
+    "values": [
+      0.82,
+      0.82,
+      0.82
+    ],
+    "operator": ">=",
+    "passed": false,
+    "auditProperty": "seo",
+    "auditId": "categories",
+    "level": "warn",
+    "url": "http://localhost:4173/obras"
+  },
+  {
+    "name": "minScore",
+    "expected": 0.85,
+    "actual": 0.82,
+    "values": [
+      0.82,
+      0.82,
+      0.82
+    ],
+    "operator": ">=",
+    "passed": false,
+    "auditProperty": "best-practices",
+    "auditId": "categories",
+    "level": "warn",
+    "url": "http://localhost:4173/fornecedores"
+  },
+  {
+    "name": "minScore",
+    "expected": 0.85,
+    "actual": 0.82,
+    "values": [
+      0.82,
+      0.82,
+      0.82
+    ],
+    "operator": ">=",
+    "passed": false,
+    "auditProperty": "seo",
+    "auditId": "categories",
+    "level": "warn",
+    "url": "http://localhost:4173/fornecedores"
+  },
+  {
+    "name": "minScore",
+    "expected": 0.85,
+    "actual": 0.82,
+    "values": [
+      0.82,
+      0.82,
+      0.82
+    ],
+    "operator": ">=",
+    "passed": false,
+    "auditProperty": "best-practices",
+    "auditId": "categories",
+    "level": "warn",
+    "url": "http://localhost:4173/fiscais"
+  },
+  {
+    "name": "minScore",
+    "expected": 0.85,
+    "actual": 0.82,
+    "values": [
+      0.82,
+      0.82,
+      0.82
+    ],
+    "operator": ">=",
+    "passed": false,
+    "auditProperty": "seo",
+    "auditId": "categories",
+    "level": "warn",
+    "url": "http://localhost:4173/fiscais"
+  },
+  {
+    "name": "minScore",
+    "expected": 0.85,
+    "actual": 0.82,
+    "values": [
+      0.82,
+      0.82,
+      0.82
+    ],
+    "operator": ">=",
+    "passed": false,
+    "auditProperty": "best-practices",
+    "auditId": "categories",
+    "level": "warn",
+    "url": "http://localhost:4173/cotacoes"
+  },
+  {
+    "name": "minScore",
+    "expected": 0.85,
+    "actual": 0.82,
+    "values": [
+      0.82,
+      0.82,
+      0.82
+    ],
+    "operator": ">=",
+    "passed": false,
+    "auditProperty": "seo",
+    "auditId": "categories",
+    "level": "warn",
+    "url": "http://localhost:4173/cotacoes"
+  },
+  {
+    "name": "minScore",
+    "expected": 0.85,
+    "actual": 0.82,
+    "values": [
+      0.82,
+      0.82,
+      0.82
+    ],
+    "operator": ">=",
+    "passed": false,
+    "auditProperty": "best-practices",
+    "auditId": "categories",
+    "level": "warn",
+    "url": "http://localhost:4173/contatos"
+  },
+  {
+    "name": "minScore",
+    "expected": 0.85,
+    "actual": 0.82,
+    "values": [
+      0.82,
+      0.82,
+      0.82
+    ],
+    "operator": ">=",
+    "passed": false,
+    "auditProperty": "seo",
+    "auditId": "categories",
+    "level": "warn",
+    "url": "http://localhost:4173/contatos"
+  }
+]

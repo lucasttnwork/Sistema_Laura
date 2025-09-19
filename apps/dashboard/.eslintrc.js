@@ -1,6 +1,1 @@
-module.exports = {
-  extends: ['../../.eslintrc.js'],
-  env: {
-    node: true,
-  },
-};
+// Use somente .eslintrc.cjs neste pacote
