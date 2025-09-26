@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Dialog, DialogContentSmall, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog'
 import { Heading } from '../components/ui/heading'
 import { supabase } from '../lib/supabaseClient'
-import { useAuthStore } from '../stores/authStore'
 import { cn } from '../lib/cn'
 import { CheckCircle2, Circle, Loader2 } from 'lucide-react'
 
@@ -119,7 +118,6 @@ function SolicitacoesPage() {
   const [selectedCotacaoId, setSelectedCotacaoId] = useState<string | null>(null)
   const [updatingCotacao, setUpdatingCotacao] = useState(false)
   const [confirmSelectOpen, setConfirmSelectOpen] = useState(false)
-  const token = useAuthStore((state) => state.token)
 
   const SELECTED_COTACAO_STATUSES = useMemo(() => ['escolhida', 'aguardando_pagamento', 'pago', 'finalizada', 'aprovada'], [])
 
@@ -301,7 +299,7 @@ function SolicitacoesPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [token])
+  }, [])
 
   useEffect(() => {
     if (!selectedSolicitacao?.id) {

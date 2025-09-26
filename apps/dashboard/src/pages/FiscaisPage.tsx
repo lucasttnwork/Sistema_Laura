@@ -25,7 +25,6 @@ import {
 } from '../lib/contactService'
 import { extractWhatsappCountryCode, formatWhatsapp } from '../lib/formatters'
 import { supabase } from '../lib/supabaseClient'
-import { useAuthStore } from '../stores/authStore'
 
 const fiscalSchema = z.object({
   nome: z.string().trim().min(3, 'Nome deve ter ao menos 3 caracteres.').max(255, 'Nome muito longo.'),
@@ -61,7 +60,6 @@ function mapToneToVariant(tone: 'success' | 'error' | 'info'): 'positive' | 'dan
 }
 
 function FiscaisPage() {
-  const token = useAuthStore((state) => state.token)
   const [fiscais, setFiscais] = useState<FiscalRecord[]>([])
   const [obras, setObras] = useState<ObraSummary[]>([])
   const [contatos, setContatos] = useState<ContactRecord[]>([])
@@ -114,22 +112,13 @@ function FiscaisPage() {
   }
 
   const fetchData = async () => {
-    if (!token) {
-      console.log('❌ Sem token, não carregando dados')
-      setFiscais([])
-      setObras([])
-      setContatos([])
-      setLoading(false)
-      setListError(null)
-      return
-    }
     console.log('🚀 Iniciando carregamento de dados para fiscais...')
     setLoading(true)
     try {
       const [fiscaisData, obrasData, contatosData] = await Promise.all([
-        listFiscais(), 
+        listFiscais(),
         listObras(),
-        listContatosByTipo('fiscal')
+        listContatosByTipo('fiscal'),
       ])
       console.log('📊 Resultados finais:')
       console.log('  - Fiscais:', fiscaisData)
@@ -152,8 +141,6 @@ function FiscaisPage() {
   useEffect(() => {
     fetchData()
 
-    if (!token) return
-
     const channel = supabase
       .channel('fiscais_crud')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'fiscais' }, () => {
@@ -164,12 +151,11 @@ function FiscaisPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [token])
+  }, [])
 
   const handleSubmit = form.handleSubmit(async (values) => {
-    if (!token) return
     setSaving(true)
-    const selectedContact = contatos.find(c => c.id === values.contatoId)
+    const selectedContact = contatos.find((c) => c.id === values.contatoId)
     const fiscalPayload = {
       nome: values.nome,
       obraId: values.obraId,

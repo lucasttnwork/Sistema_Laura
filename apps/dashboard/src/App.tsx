@@ -1,6 +1,5 @@
-﻿import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, Outlet, useNavigate } from 'react-router-dom'
+﻿import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, Outlet } from 'react-router-dom'
 
-import { Button } from './components/ui/button'
 import { Heading } from './components/ui/heading'
 import { cn } from './lib/cn'
 import ContatosPage from './pages/ContatosPage'
@@ -10,7 +9,6 @@ import FornecedoresPage from './pages/FornecedoresPage'
 import LoginPage from './pages/LoginPage'
 import ObrasPage from './pages/ObrasPage'
 import SolicitacoesPage from './pages/SolicitacoesPage'
-import { useAuthStore } from './stores/authStore'
 
 type NavItem = {
   to: string
@@ -28,14 +26,6 @@ const navItems: NavItem[] = [
 ]
 
 const DashboardLayout = () => {
-  const logout = useAuthStore((state) => state.logout)
-  const navigate = useNavigate()
-
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
-  }
-
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground md:flex-row">
       <aside className="flex w-full flex-col gap-6 border-b border-outline bg-surface/90 px-6 py-5 backdrop-blur md:h-screen md:w-64 md:border-b-0 md:border-r">
@@ -64,14 +54,6 @@ const DashboardLayout = () => {
             </NavLink>
           ))}
         </nav>
-        <Button
-          dataTestId="btn-logout"
-          variant="ghost"
-          className="mt-4 w-full justify-start text-sm"
-          onClick={handleLogout}
-        >
-          Sair
-        </Button>
       </aside>
 
       <div className="flex flex-1 flex-col">

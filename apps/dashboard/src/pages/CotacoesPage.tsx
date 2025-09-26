@@ -7,7 +7,6 @@ import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } fr
 import { Button } from '../components/ui/button'
 import { Heading } from '../components/ui/heading'
 import { supabase } from '../lib/supabaseClient'
-import { useAuthStore } from '../stores/authStore'
 
 const CURRENCY_FORMATTER = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const DATE_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
@@ -81,7 +80,6 @@ function CotacoesPage() {
   const [cotacoes, setCotacoes] = useState<Cotacao[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const token = useAuthStore((state) => state.token)
 
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [selectedCotacaoId, setSelectedCotacaoId] = useState<string | null>(null)

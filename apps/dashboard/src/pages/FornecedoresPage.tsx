@@ -27,7 +27,6 @@ import {
   normalizeWhatsapp,
 } from '../lib/formatters'
 import { supabase } from '../lib/supabaseClient'
-import { useAuthStore } from '../stores/authStore'
 
 const fornecedorSchema = z.object({
   nome: z.string().trim().min(3, 'Nome deve ter ao menos 3 caracteres.').max(120, 'Nome muito longo.'),
@@ -102,7 +101,6 @@ function mapToneToVariant(tone: 'success' | 'error' | 'info'): 'positive' | 'dan
 }
 
 function FornecedoresPage() {
-  const token = useAuthStore((state) => state.token)
   const [fornecedores, setFornecedores] = useState<FornecedorRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [listError, setListError] = useState<string | null>(null)
@@ -153,11 +151,6 @@ function FornecedoresPage() {
   const errorClasses = 'text-xs text-danger'
 
   const fetchFornecedores = async () => {
-    if (!token) {
-      setFornecedores([])
-      setLoading(false)
-      return
-    }
     setLoading(true)
     try {
       const data = await listFornecedores()
@@ -176,8 +169,6 @@ function FornecedoresPage() {
   useEffect(() => {
     fetchFornecedores()
 
-    if (!token) return
-
     const channel = supabase
       .channel('fornecedores_crud')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'fornecedores' }, () => fetchFornecedores())
@@ -186,10 +177,9 @@ function FornecedoresPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [token])
+  }, [])
 
   const handleSubmit = form.handleSubmit(async (values) => {
-    if (!token) return
     setSaving(true)
     const contatoPayload = {
       nome: values.nome,

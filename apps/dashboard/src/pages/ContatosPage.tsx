@@ -22,7 +22,6 @@ import {
 } from '../lib/contactService'
 import { emptyToNull, emptyToUndefined, formatWhatsapp, normalizeWhatsapp } from '../lib/formatters'
 import { supabase } from '../lib/supabaseClient'
-import { useAuthStore } from '../stores/authStore'
 
 const contatoTipos = ['desconhecido', 'fiscal', 'fornecedor', 'escritorio'] as const
 
@@ -102,7 +101,6 @@ function mapToneToVariant(tone: 'success' | 'error' | 'info'): 'positive' | 'dan
 }
 
 function ContatosPage() {
-  const token = useAuthStore((state) => state.token)
   const [contatos, setContatos] = useState<ContactRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [listError, setListError] = useState<string | null>(null)
@@ -139,12 +137,6 @@ function ContatosPage() {
   )
 
   const fetchContatos = async () => {
-    if (!token) {
-      setContatos([])
-      setLoading(false)
-      setListError(null)
-      return
-    }
     setLoading(true)
     try {
       const data = await listContatos()
@@ -163,8 +155,6 @@ function ContatosPage() {
   useEffect(() => {
     fetchContatos()
 
-    if (!token) return
-
     const channel = supabase
       .channel('contatos_crud')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contatos' }, () => {
@@ -175,10 +165,9 @@ function ContatosPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [token])
+  }, [])
 
   const handleSubmit = form.handleSubmit(async (values) => {
-    if (!token) return
     setSaving(true)
     const whatsappE164 = toE164Whatsapp(values.whatsapp)
     try {

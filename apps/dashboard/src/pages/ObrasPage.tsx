@@ -14,7 +14,6 @@ import { Input } from '../components/ui/input'
 import { useCrudForm } from '../hooks/useCrudForm'
 import { cn } from '../lib/cn'
 import { supabase } from '../lib/supabaseClient'
-import { useAuthStore } from '../stores/authStore'
 
 const DATE_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
   day: '2-digit',
@@ -114,7 +113,6 @@ const SELECT_CLASSES =
   'h-10 w-full rounded-md border border-outline bg-surface px-4 text-sm text-foreground transition-shadow placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60'
 
 function ObrasPage() {
-  const token = useAuthStore((state) => state.token)
   const [obras, setObras] = useState<Obra[]>([])
   const [loading, setLoading] = useState(true)
   const [listError, setListError] = useState<string | null>(null)
@@ -152,12 +150,6 @@ function ObrasPage() {
   }, [deleteState.target])
 
   const fetchObras = async () => {
-    if (!token) {
-      setObras([])
-      setLoading(false)
-      setListError(null)
-      return
-    }
     setLoading(true)
     try {
       const { data, error: queryError } = await supabase
@@ -191,8 +183,6 @@ function ObrasPage() {
   useEffect(() => {
     fetchObras()
 
-    if (!token) return
-
     const channel = supabase
       .channel('obras_crud')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'obras' }, () => {
@@ -203,10 +193,9 @@ function ObrasPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [token])
+  }, [])
 
   const handleSubmit = form.handleSubmit(async (values) => {
-    if (!token) return
     setSaving(true)
     
     const payload = {
