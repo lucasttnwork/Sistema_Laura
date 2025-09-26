@@ -1,4 +1,5 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+﻿import { CheckCircle2, Circle, Loader2, UploadCloud } from 'lucide-react'
+import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert'
 import { Badge } from '../components/ui/badge'
@@ -6,9 +7,8 @@ import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Dialog, DialogContentSmall, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog'
 import { Heading } from '../components/ui/heading'
-import { supabase } from '../lib/supabaseClient'
 import { cn } from '../lib/cn'
-import { CheckCircle2, Circle, Loader2 } from 'lucide-react'
+import { supabase } from '../lib/supabaseClient'
 
 const DATE_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
   day: '2-digit',
@@ -17,6 +17,8 @@ const DATE_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
   hour: '2-digit',
   minute: '2-digit',
 })
+
+const PAYMENT_WEBHOOK_URL = 'https://primary-production-3fbb3.up.railway.app/webhook-test/be850ced-0798-4983-99d5-467a521d1069'
 
 type Fiscal = {
   id: string
@@ -118,6 +120,22 @@ function SolicitacoesPage() {
   const [selectedCotacaoId, setSelectedCotacaoId] = useState<string | null>(null)
   const [updatingCotacao, setUpdatingCotacao] = useState(false)
   const [confirmSelectOpen, setConfirmSelectOpen] = useState(false)
+  const [showPaymentUpload, setShowPaymentUpload] = useState(false)
+  const [paymentFile, setPaymentFile] = useState<File | null>(null)
+  const [uploadingPayment, setUploadingPayment] = useState(false)
+  const [paymentUploadError, setPaymentUploadError] = useState<string | null>(null)
+  const [paymentUploadSuccess, setPaymentUploadSuccess] = useState(false)
+  const [isDraggingPaymentFile, setIsDraggingPaymentFile] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  useEffect(() => {
+    if (!selectedSolicitacao) {
+      setShowPaymentUpload(false)
+      setPaymentFile(null)
+      setPaymentUploadError(null)
+      setPaymentUploadSuccess(false)
+    }
+  }, [selectedSolicitacao])
 
   const SELECTED_COTACAO_STATUSES = useMemo(() => ['escolhida', 'aguardando_pagamento', 'pago', 'finalizada', 'aprovada'], [])
 
@@ -150,6 +168,13 @@ function SolicitacoesPage() {
   }, [selectedSolicitacao, selectedCotacaoId, SELECTED_COTACAO_STATUSES])
 
   const solicitationHasChosen = Boolean(selectedSolicitacao?.cotacao_escolhida)
+
+  const isAwaitingPayment = useMemo(() => {
+    const normalized = (selectedSolicitacao?.status || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+    return normalized.includes('aguardando_pagamento')
+  }, [selectedSolicitacao?.status])
 
   useEffect(() => {
     const fetchSolicitacoes = async () => {
@@ -238,33 +263,40 @@ function SolicitacoesPage() {
         }
       } else {
         setError(null)
-        setSolicitacoes((data as any[])?.map(item => ({
-          id: item.id,
-          codigo: item.codigo,
-          pedido: item.pedido,
-          urgencia: item.urgencia,
-          status: item.status,
-          cotacao_escolhida: item.cotacao_escolhida,
-          valor_estimado: item.valor_estimado,
-          observacoes: item.observacoes,
-          created_at: item.created_at,
-          updated_at: item.updated_at,
-          fiscal: item.fiscal ? {
-            id: item.fiscal.id,
-            nome: item.fiscal.nome,
-            contato: item.fiscal.contato
-          } : null,
-          obra: item.obra ? {
-            id: item.obra.id,
-            nome: item.obra.nome,
-            endereco: item.obra.endereco,
-            cidade: item.obra.cidade,
-            estado: item.obra.estado
-          } : null,
-          cotacoes: item.cotacoes || [],
-          cotacao_escolhida_rel: item.cotacao_escolhida_rel || null,
-          aprovacoes: item.aprovacoes || null
-        })) ?? [])
+        setSolicitacoes((data as unknown[])?.map((rawItem) => {
+          const item = rawItem as Record<string, unknown>
+          return {
+            id: item.id as string,
+            codigo: item.codigo as string,
+            pedido: item.pedido as string,
+            urgencia: (item.urgencia ?? null) as string | null,
+            status: item.status as string,
+            cotacao_escolhida: (item.cotacao_escolhida ?? null) as string | null,
+            valor_estimado: (item.valor_estimado ?? null) as number | null,
+            observacoes: (item.observacoes ?? null) as string | null,
+            created_at: item.created_at as string,
+            updated_at: item.updated_at as string,
+            fiscal: item.fiscal
+              ? {
+                  id: (item.fiscal as Record<string, unknown>).id as string,
+                  nome: ((item.fiscal as Record<string, unknown>).nome ?? null) as string | null,
+                  contato: ((item.fiscal as Record<string, unknown>).contato ?? null) as Fiscal['contato'],
+                }
+              : null,
+            obra: item.obra
+              ? {
+                  id: (item.obra as Record<string, unknown>).id as string,
+                  nome: (item.obra as Record<string, unknown>).nome as string,
+                  endereco: ((item.obra as Record<string, unknown>).endereco ?? null) as string | null,
+                  cidade: ((item.obra as Record<string, unknown>).cidade ?? null) as string | null,
+                  estado: ((item.obra as Record<string, unknown>).estado ?? null) as string | null,
+                }
+              : null,
+            cotacoes: (item.cotacoes as Cotacao[] | undefined) ?? [],
+            cotacao_escolhida_rel: (item.cotacao_escolhida_rel as (Cotacao & { id: string }) | null) ?? null,
+            aprovacoes: (item.aprovacoes as Aprovacao | null) ?? null,
+          }
+        }) ?? [])
       }
       setLoading(false)
     }
@@ -368,6 +400,120 @@ function SolicitacoesPage() {
     setSelectedCotacaoId(null)
     setSelectingCotacao(false)
   }, [selectedSolicitacao?.id])
+
+  useEffect(() => {
+    if (!isModalOpen) {
+      setShowPaymentUpload(false)
+      setPaymentFile(null)
+      setPaymentUploadError(null)
+      setPaymentUploadSuccess(false)
+      setIsDraggingPaymentFile(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }, [isModalOpen])
+
+  useEffect(() => {
+    if (!isAwaitingPayment) {
+      setShowPaymentUpload(false)
+      setPaymentFile(null)
+      setPaymentUploadError(null)
+      setPaymentUploadSuccess(false)
+      setIsDraggingPaymentFile(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }, [isAwaitingPayment])
+
+  const handlePaymentFileSelection = (files: FileList | null) => {
+    if (!files || files.length === 0) {
+      return
+    }
+    const file = files[0]
+    setPaymentFile(file)
+    setPaymentUploadError(null)
+    setPaymentUploadSuccess(false)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handlePaymentInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    handlePaymentFileSelection(event.target.files)
+  }
+
+  const handlePaymentDragOver = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    if (!isAwaitingPayment) {
+      return
+    }
+    setIsDraggingPaymentFile(true)
+  }
+
+  const handlePaymentDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDraggingPaymentFile(false)
+  }
+
+  const handlePaymentDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    if (!isAwaitingPayment) {
+      return
+    }
+    setIsDraggingPaymentFile(false)
+    handlePaymentFileSelection(event.dataTransfer?.files ?? null)
+  }
+
+  const handleOpenFileDialog = () => {
+    if (!isAwaitingPayment) {
+      return
+    }
+    fileInputRef.current?.click()
+  }
+
+  const handleSubmitPaymentProof = async () => {
+    if (!selectedSolicitacao?.id || uploadingPayment) {
+      return
+    }
+    if (!paymentFile) {
+      setPaymentUploadError('Selecione um arquivo antes de enviar.')
+      setPaymentUploadSuccess(false)
+      return
+    }
+
+    try {
+      setUploadingPayment(true)
+      setPaymentUploadError(null)
+      setPaymentUploadSuccess(false)
+
+      const formData = new FormData()
+      formData.append('solicitacaoId', selectedSolicitacao.id)
+      formData.append('comprovante', paymentFile)
+
+      const response = await fetch(PAYMENT_WEBHOOK_URL, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        throw new Error(`Falha ao enviar comprovante (status ${response.status}).`)
+      }
+
+      setPaymentUploadSuccess(true)
+      setPaymentFile(null)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    } catch (err) {
+      console.error('Erro ao enviar comprovante de pagamento:', err)
+      setPaymentUploadError('Não foi possível enviar o comprovante. Tente novamente em instantes.')
+      setPaymentUploadSuccess(false)
+    } finally {
+      setUploadingPayment(false)
+    }
+  }
 
   useEffect(() => {
     if (!selectedSolicitacao?.cotacao_escolhida) {
@@ -652,6 +798,86 @@ function SolicitacoesPage() {
                     </div>
                   </div>
                 )}
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium text-foreground">Pagamento</h3>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        if (isAwaitingPayment) {
+                          setShowPaymentUpload((prev) => !prev)
+                        }
+                      }}
+                      disabled={!isAwaitingPayment}
+                    >
+                      Enviar comprovante
+                    </Button>
+                  </div>
+
+                  <div className={cn('space-y-3 transition-all', showPaymentUpload ? 'max-h-[600px] opacity-100' : 'max-h-0 overflow-hidden opacity-0')}>
+                    <p className="text-xs text-muted-foreground">
+                      Adicione o comprovante de pagamento para envio ao fornecedor. Aceitamos apenas 1 arquivo.
+                    </p>
+
+                    <div
+                      onDragOver={handlePaymentDragOver}
+                      onDragLeave={handlePaymentDragLeave}
+                      onDrop={handlePaymentDrop}
+                      onClick={handleOpenFileDialog}
+                      className={cn(
+                        'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-outline/60 bg-muted/30 p-6 text-center transition',
+                        isAwaitingPayment ? 'hover:border-primary/70' : 'cursor-not-allowed opacity-60',
+                        isDraggingPaymentFile ? 'border-primary bg-primary/5' : '',
+                      )}
+                    >
+                      <UploadCloud className="h-8 w-8 text-muted-foreground" />
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-foreground">Clique ou arraste o arquivo do comprovante</p>
+                        <p className="text-xs text-muted-foreground">Formatos suportados: PDF, JPG, PNG e similares</p>
+                      </div>
+                      {paymentFile && (
+                        <div className="mt-2 rounded bg-primary/5 px-3 py-1 text-xs text-primary">
+                          Arquivo selecionado: <strong>{paymentFile.name}</strong>
+                        </div>
+                      )}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        className="hidden"
+                        onChange={handlePaymentInputChange}
+                        disabled={!isAwaitingPayment}
+                      />
+                    </div>
+
+                    {paymentUploadError && (
+                      <Alert variant="danger">
+                        <AlertTitle>Erro ao enviar</AlertTitle>
+                        <AlertDescription>{paymentUploadError}</AlertDescription>
+                      </Alert>
+                    )}
+
+                    {paymentUploadSuccess && (
+                      <Alert variant="positive">
+                        <AlertTitle>Sucesso!</AlertTitle>
+                        <AlertDescription>Comprovante enviado ao fornecedor.</AlertDescription>
+                      </Alert>
+                    )}
+
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        onClick={handleSubmitPaymentProof}
+                        disabled={!isAwaitingPayment || !paymentFile || uploadingPayment}
+                        className="flex items-center gap-2"
+                      >
+                        {uploadingPayment && <Loader2 className="h-4 w-4 animate-spin" />}
+                        Enviar comprovante
+                      </Button>
+                    </div>
+                  </div>
+                </div>
 
                 {/* Cotações */}
                 {selectedSolicitacao.cotacoes && selectedSolicitacao.cotacoes.length > 0 && (
