@@ -1,32 +1,78 @@
+const BRAZIL_COUNTRY_CODE = '55'
+
 export function onlyDigits(value: string): string {
   return value.replace(/\D+/g, '')
 }
 
-export function formatWhatsapp(value: string): string {
-  const digits = onlyDigits(value)
+type FormatWhatsappOptions = {
+  includeCountryCode?: boolean
+}
+
+type WhatsappParts = {
+  countryCode: string
+  nationalNumber: string
+}
+
+function formatNationalWhatsapp(value: string): string {
+  const digits = onlyDigits(value).slice(-11)
   if (digits.length === 0) return ''
-  const country = digits.length > 11 ? digits.slice(0, digits.length - 11) : '55'
-  const baseDigits = digits.length > 11 ? digits.slice(-11) : digits
-  const ddd = baseDigits.slice(0, 2)
-  const firstPart = baseDigits.length > 6 ? baseDigits.slice(2, baseDigits.length - 4) : baseDigits.slice(2)
-  const lastPart = baseDigits.slice(-4)
-  if (!ddd) return baseDigits
-  const prefix = country && country !== '55' ? `+${country} ` : ''
-  if (firstPart.length === 0) {
-    return `${prefix}(${ddd}`.trim()
+  if (digits.length <= 2) return digits
+  const ddd = digits.slice(0, 2)
+  const subscriber = digits.slice(2)
+  if (subscriber.length <= 4) {
+    return `(${ddd}) ${subscriber}`
   }
-  return `${prefix}(${ddd}) ${firstPart}${firstPart.length ? '-' : ''}${lastPart}`.trim()
+  const prefix = subscriber.slice(0, subscriber.length - 4)
+  const suffix = subscriber.slice(-4)
+  return `(${ddd}) ${prefix}${prefix ? '-' : ''}${suffix}`
+}
+
+export function splitWhatsapp(value: string): WhatsappParts {
+  const digits = onlyDigits(value)
+  if (!digits) {
+    return { countryCode: BRAZIL_COUNTRY_CODE, nationalNumber: '' }
+  }
+
+  if (digits.startsWith(BRAZIL_COUNTRY_CODE) && digits.length >= 12) {
+    return {
+      countryCode: BRAZIL_COUNTRY_CODE,
+      nationalNumber: digits.slice(-11),
+    }
+  }
+
+  if (digits.length > 11) {
+    const nationalNumber = digits.slice(-11)
+    const countryDigits = digits.slice(0, digits.length - nationalNumber.length) || BRAZIL_COUNTRY_CODE
+    return { countryCode: countryDigits, nationalNumber }
+  }
+
+  if (digits.length === 11) {
+    return { countryCode: BRAZIL_COUNTRY_CODE, nationalNumber: digits }
+  }
+
+  return { countryCode: BRAZIL_COUNTRY_CODE, nationalNumber: digits }
+}
+
+export function formatWhatsapp(value: string, options?: FormatWhatsappOptions): string {
+  const { countryCode, nationalNumber } = splitWhatsapp(value)
+  const formattedNational = formatNationalWhatsapp(nationalNumber)
+  if (options?.includeCountryCode && countryCode) {
+    if (formattedNational) {
+      return `+${countryCode} ${formattedNational}`
+    }
+    return `+${countryCode}`
+  }
+  return formattedNational
+}
+
+export function extractWhatsappCountryCode(value: string): string {
+  const { countryCode } = splitWhatsapp(value)
+  return countryCode
 }
 
 export function normalizeWhatsapp(value: string): string {
-  const digits = onlyDigits(value)
-  if (digits.length === 13 && digits.startsWith('55')) {
-    return digits.slice(-11)
-  }
-  if (digits.length > 11) {
-    return digits.slice(-11)
-  }
-  return digits
+  const { nationalNumber } = splitWhatsapp(value)
+  return nationalNumber
 }
 
 export function formatCnpj(value: string): string {

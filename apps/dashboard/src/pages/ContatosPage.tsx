@@ -24,9 +24,16 @@ import { emptyToNull, emptyToUndefined, formatWhatsapp, normalizeWhatsapp } from
 import { supabase } from '../lib/supabaseClient'
 import { useAuthStore } from '../stores/authStore'
 
-const contatoTipos = ['DESCONHECIDO', 'FISCAL', 'FORNECEDOR', 'GERENTE', 'ADMIN', 'CLIENTE'] as const
+const contatoTipos = ['desconhecido', 'fiscal', 'fornecedor', 'escritorio'] as const
 
 type ContatoTipo = (typeof contatoTipos)[number]
+
+const contatoTipoLabels: Record<ContatoTipo, string> = {
+  desconhecido: 'Desconhecido',
+  fiscal: 'Fiscal',
+  fornecedor: 'Fornecedor',
+  escritorio: 'Escritório',
+}
 
 const contatoSchema = z.object({
   nome: z.string().trim().min(3, 'Nome deve ter ao menos 3 caracteres.').max(120, 'Nome muito longo.'),
@@ -35,20 +42,23 @@ const contatoSchema = z.object({
     .min(10, 'Informe DDD e numero com 10 ou 11 digitos.')
     .max(11, 'Informe no maximo 11 digitos.')
     .regex(/^[0-9]+$/, 'Use apenas numeros para o WhatsApp.'),
-  email: z
-    .string()
-    .trim()
-    .max(120, 'E-mail excede o limite de 120 caracteres.')
-    .email('E-mail invalido.')
-    .or(z.literal('')),
-  observacoes: z
-    .string()
-    .trim()
-    .max(500, 'Observacoes limitadas a 500 caracteres.')
-    .or(z.literal('')),
+  email: z.literal(''),
+  observacoes: z.literal(''),
   tipo: z.enum(contatoTipos),
   ativo: z.boolean(),
 })
+
+const BRAZIL_COUNTRY_CODE = '55'
+
+function sanitizeWhatsappInput(value: string): string {
+  return value.replace(/[^0-9]/g, '').slice(0, 11)
+}
+
+function toE164Whatsapp(value: string): string {
+  const digits = sanitizeWhatsappInput(value)
+  if (!digits) return ''
+  return `+${BRAZIL_COUNTRY_CODE}${digits}`
+}
 
 type ContatoFormValues = z.infer<typeof contatoSchema>
 
@@ -63,7 +73,7 @@ const contatoDefaults: ContatoFormValues = {
   whatsapp: '',
   email: '',
   observacoes: '',
-  tipo: 'DESCONHECIDO',
+  tipo: 'desconhecido',
   ativo: true,
 }
 
@@ -75,8 +85,14 @@ const CHECKBOX_CLASSES =
   'h-4 w-4 rounded border border-outline bg-surface text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60'
 
 function resolveTipo(value: string | null): ContatoTipo {
-  if (!value) return 'DESCONHECIDO'
-  return contatoTipos.includes(value as ContatoTipo) ? (value as ContatoTipo) : 'DESCONHECIDO'
+  if (!value) return 'desconhecido'
+  const normalized = value.toLowerCase()
+  return contatoTipos.includes(normalized as ContatoTipo) ? (normalized as ContatoTipo) : 'desconhecido'
+}
+
+function formatTipoLabel(value: string | null): string {
+  const resolved = resolveTipo(value)
+  return contatoTipoLabels[resolved] ?? resolved
 }
 
 function mapToneToVariant(tone: 'success' | 'error' | 'info'): 'positive' | 'danger' | 'info' {
@@ -109,9 +125,9 @@ function ContatosPage() {
     defaultValues: contatoDefaults,
     mapRecordToForm: (record) => ({
       nome: record.nome ?? '',
-      whatsapp: normalizeWhatsapp(record.whatsapp),
-      email: record.email ?? '',
-      observacoes: record.observacoes ?? '',
+      whatsapp: normalizeWhatsapp(record.whatsapp ?? ''),
+      email: '',
+      observacoes: '',
       tipo: resolveTipo(record.tipo),
       ativo: record.ativo,
     }),
@@ -164,13 +180,12 @@ function ContatosPage() {
   const handleSubmit = form.handleSubmit(async (values) => {
     if (!token) return
     setSaving(true)
+    const whatsappE164 = toE164Whatsapp(values.whatsapp)
     try {
       if (editing) {
         const updated = await updateContatoSimples(editing.id, {
           nome: values.nome,
-          whatsapp: values.whatsapp,
-          email: emptyToNull(values.email),
-          observacoes: emptyToNull(values.observacoes),
+          whatsapp: whatsappE164,
           tipo: values.tipo,
           ativo: values.ativo,
         })
@@ -179,9 +194,7 @@ function ContatosPage() {
       } else {
         const created = await createContatoSimples({
           nome: values.nome,
-          whatsapp: values.whatsapp,
-          email: emptyToUndefined(values.email),
-          observacoes: emptyToUndefined(values.observacoes),
+          whatsapp: whatsappE164,
           tipo: values.tipo,
           ativo: values.ativo,
         })
@@ -328,9 +341,6 @@ function ContatosPage() {
                           <span className="font-medium text-foreground">
                             {contato.nome ? contato.nome : 'Sem nome cadastrado'}
                           </span>
-                          {contato.email ? (
-                            <span className="text-xs text-muted-foreground">{contato.email}</span>
-                          ) : null}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-muted-foreground">
@@ -338,7 +348,7 @@ function ContatosPage() {
                       </td>
                       <td className="px-6 py-4">
                         <Badge variant="outline" dataTestId={`badge-contato-tipo-${contato.id}`}>
-                          {resolveTipo(contato.tipo)}
+                          {formatTipoLabel(contato.tipo)}
                         </Badge>
                       </td>
                       <td className="px-6 py-4">
@@ -424,22 +434,33 @@ function ContatosPage() {
                   <label htmlFor="contato-whatsapp" className="text-sm font-medium text-foreground">
                     WhatsApp
                   </label>
-                  <Input
-                    id="contato-whatsapp"
-                    dataTestId="input-contato-whatsapp"
-                    name={field.name}
-                    ref={field.ref}
-                    value={formatWhatsapp(field.value)}
-                    onChange={(event) => field.onChange(normalizeWhatsapp(event.target.value))}
-                    onBlur={field.onBlur}
-                    placeholder="(11) 99999-0000"
-                    inputMode="tel"
-                    maxLength={20}
-                    disabled={saving}
-                    aria-invalid={Boolean(fieldState.error)}
-                    aria-describedby={fieldState.error ? 'contato-whatsapp-error' : undefined}
-                    className={cn(fieldState.error && 'border-danger focus-visible:ring-danger')}
-                  />
+                  <div className="flex">
+                    <span
+                      aria-hidden="true"
+                      className="inline-flex h-10 items-center rounded-l-md border border-outline border-r-0 bg-muted px-3 text-sm text-muted-foreground"
+                    >
+                      +{BRAZIL_COUNTRY_CODE}
+                    </span>
+                    <Input
+                      id="contato-whatsapp"
+                      dataTestId="input-contato-whatsapp"
+                      name={field.name}
+                      ref={field.ref}
+                      value={field.value ?? ''}
+                      onChange={(event) => field.onChange(sanitizeWhatsappInput(event.target.value))}
+                      onBlur={field.onBlur}
+                      placeholder="11999999999"
+                      inputMode="tel"
+                      maxLength={11}
+                      disabled={saving}
+                      aria-invalid={Boolean(fieldState.error)}
+                      aria-describedby={fieldState.error ? 'contato-whatsapp-error' : undefined}
+                      className={cn('rounded-l-none border-l-0', fieldState.error && 'border-danger focus-visible:ring-danger')}
+                    />
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    O contato sera salvo automaticamente com o prefixo +{BRAZIL_COUNTRY_CODE}.
+                  </span>
                   {fieldState.error ? (
                     <span id="contato-whatsapp-error" className="text-xs text-danger">
                       {fieldState.error.message}
@@ -488,7 +509,7 @@ function ContatosPage() {
               >
                 {contatoTipos.map((tipo) => (
                   <option key={tipo} value={tipo}>
-                    {tipo}
+                    {contatoTipoLabels[tipo]}
                   </option>
                 ))}
               </select>

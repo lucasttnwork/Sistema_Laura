@@ -9,9 +9,10 @@ export interface DialogProps {
   onClose?: () => void
   children: ReactNode
   dataTestId?: string
+  contentClassName?: string
 }
 
-export function Dialog({ open, onClose, children, dataTestId }: DialogProps) {
+export function Dialog({ open, onClose, children, dataTestId, contentClassName }: DialogProps) {
   useEffect(() => {
     if (!open) {
       return
@@ -42,7 +43,10 @@ export function Dialog({ open, onClose, children, dataTestId }: DialogProps) {
         role="dialog"
         aria-modal="true"
         data-testid={dataTestId ?? 'dialog'}
-        className="relative z-modal w-full max-w-lg max-h-[calc(100vh-4rem)] overflow-y-auto rounded-lg border border-outline bg-surface p-6 shadow-strong"
+        className={cn(
+          'relative z-modal w-full max-w-5xl max-h-[calc(100vh-4rem)] overflow-y-auto rounded-lg border border-outline bg-surface p-6 shadow-strong',
+          contentClassName,
+        )}
       >
         {children}
       </div>
@@ -65,4 +69,18 @@ export function DialogDescription({ className, ...props }: HTMLAttributes<HTMLPa
 
 export function DialogFooter({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn('mt-6 flex items-center justify-end gap-3', className)} {...props} />
+}
+
+export function DialogContentSmall({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className={cn(
+        'relative z-modal w-full max-w-md max-h-[calc(100vh-4rem)] overflow-y-auto rounded-lg border border-outline bg-surface p-5 shadow-strong',
+        className,
+      )}
+      {...props}
+    />
+  )
 }

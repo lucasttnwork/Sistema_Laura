@@ -8,8 +8,6 @@ export type ContactRecord = {
   whatsapp: string
   tipo: string
   ativo: boolean
-  email: string | null
-  observacoes: string | null
 }
 
 export type ObraSummary = {
@@ -20,15 +18,19 @@ export type ObraSummary = {
 export type FornecedorRecord = {
   id: string
   contatoId: string
-  categoria: string
-  razaoSocial: string | null
+  nome: string
+  nomeFantasia: string | null
+  categoria: string | null
+  telefonePrincipal: string | null
+  email: string | null
   cnpj: string | null
+  inscricaoEstadual: string | null
   cidade: string | null
   estado: string | null
-  observacoes: string | null
+  condicoesPagamento: string | null
   ativo: boolean
-  created_at?: string
-  updated_at?: string
+  createdAt?: string
+  updatedAt?: string
   contato: ContactRecord
 }
 
@@ -36,9 +38,8 @@ export type FiscalRecord = {
   id: string
   contatoId: string
   obraId: string | null
-  cargo: string
-  registroProfissional: string | null
-  especialidade: string | null
+  nome: string | null
+  ativo: boolean
   contato: ContactRecord
   obra: ObraSummary | null
 }
@@ -62,12 +63,16 @@ export type ContactUpdate = {
 }
 
 export type FornecedorInput = {
-  categoria: string
-  razaoSocial?: string | null
+  nome: string
+  categoria?: string | null
+  nomeFantasia?: string | null
+  telefonePrincipal?: string | null
+  email?: string | null
   cnpj?: string | null
+  inscricaoEstadual?: string | null
   cidade?: string | null
   estado?: string | null
-  observacoes?: string | null
+  condicoesPagamento?: string | null
   ativo?: boolean
 }
 
@@ -85,8 +90,6 @@ function normalizeContact(data: any): ContactRecord {
     whatsapp: data?.whatsapp ?? '',
     tipo: data?.tipo ?? '',
     ativo: Boolean(data?.ativo),
-    email: data?.email ?? null,
-    observacoes: data?.observacoes ?? null,
   }
 }
 
@@ -94,15 +97,19 @@ function normalizeFornecedor(row: any): FornecedorRecord {
   return {
     id: row?.id,
     contatoId: row?.contatoId,
-    categoria: row?.categoria,
-    razaoSocial: row?.razaoSocial ?? null,
+    nome: row?.nome ?? '',
+    nomeFantasia: row?.nomeFantasia ?? null,
+    categoria: row?.categoria ?? null,
+    telefonePrincipal: row?.telefonePrincipal ?? null,
+    email: row?.email ?? null,
     cnpj: row?.cnpj ?? null,
+    inscricaoEstadual: row?.inscricaoEstadual ?? null,
     cidade: row?.cidade ?? null,
     estado: row?.estado ?? null,
-    observacoes: row?.observacoes ?? null,
+    condicoesPagamento: row?.condicoesPagamento ?? null,
     ativo: Boolean(row?.ativo),
-    created_at: row?.created_at,
-    updated_at: row?.updated_at,
+    createdAt: row?.created_at,
+    updatedAt: row?.updated_at,
     contato: normalizeContact(row?.contato),
   }
 }
@@ -112,9 +119,8 @@ function normalizeFiscal(row: any): FiscalRecord {
     id: row?.id,
     contatoId: row?.contatoId,
     obraId: row?.obraId ?? null,
-    cargo: row?.cargo ?? '',
-    registroProfissional: row?.registroProfissional ?? null,
-    especialidade: row?.especialidade ?? null,
+    nome: row?.nome ?? null,
+    ativo: Boolean(row?.ativo),
     contato: normalizeContact(row?.contato),
     obra: row?.obra ? { id: row?.obra?.id, nome: row?.obra?.nome } : null,
   }
@@ -124,8 +130,8 @@ export async function listFornecedores(): Promise<FornecedorRecord[]> {
   const { data, error } = await supabase
     .from('fornecedores')
     .select(
-      `id, contatoId:contato_id, categoria, razaoSocial:razao_social, cnpj, cidade, estado, observacoes, ativo, created_at, updated_at,
-       contato:contatos ( id, nome, whatsapp, tipo, ativo, email, observacoes )`
+      `id, contatoId:contato_id, nome, nomeFantasia:nome_fantasia, categoria, telefonePrincipal:telefone_principal, email, cnpj, inscricaoEstadual:inscricao_estadual, cidade, estado, condicoesPagamento:condicoes_pagamento, ativo, created_at, updated_at,
+       contato:contatos ( id, nome, whatsapp, tipo, ativo )`
     )
     .order('created_at', { ascending: false })
 
@@ -137,8 +143,8 @@ export async function listFiscais(): Promise<FiscalRecord[]> {
   const { data, error } = await supabase
     .from('fiscais')
     .select(
-      `id, contatoId:contato_id, obraId:obra_id, cargo, registroProfissional:registro_profissional, especialidade,
-       contato:contatos ( id, nome, whatsapp, tipo, ativo, email, observacoes ),
+      `id, contatoId:contato_id, obraId:obra_id, nome, ativo,
+       contato:contatos ( id, nome, whatsapp, tipo, ativo ),
        obra:obras ( id, nome )`
     )
     .order('created_at', { ascending: false })
@@ -150,10 +156,22 @@ export async function listFiscais(): Promise<FiscalRecord[]> {
 export async function listContatos(): Promise<ContactRecord[]> {
   const { data, error } = await supabase
     .from('contatos')
-    .select('id, nome, whatsapp, tipo, ativo, email, observacoes, created_at')
+    .select('id, nome, whatsapp, tipo, ativo, created_at')
     .order('created_at', { ascending: false })
 
   if (error) throwSupabaseError(error, 'Nao foi possivel carregar contatos.')
+  return (data ?? []).map(normalizeContact)
+}
+
+export async function listContatosByTipo(tipo: string): Promise<ContactRecord[]> {
+  const normalized = (tipo ?? '').toLowerCase()
+  const { data, error } = await supabase
+    .from('contatos')
+    .select('id, nome, whatsapp, tipo, ativo, created_at')
+    .eq('tipo', normalized)
+    .order('created_at', { ascending: false })
+
+  if (error) throwSupabaseError(error, 'Nao foi possivel carregar contatos por tipo.')
   return (data ?? []).map(normalizeContact)
 }
 
@@ -167,10 +185,8 @@ export async function createContato(payload: ContactInput): Promise<ContactRecor
   const insert = {
     nome: payload.nome,
     whatsapp: payload.whatsapp,
-    tipo: payload.tipo ?? 'DESCONHECIDO',
+    tipo: payload.tipo ?? 'desconhecido',
     ativo: payload.ativo ?? true,
-    email: payload.email ?? null,
-    observacoes: payload.observacoes ?? null,
   }
   const { data, error } = await supabase.from('contatos').insert(insert).select().single()
   if (error) throwSupabaseError(error, 'Nao foi possivel criar contato.')
@@ -183,10 +199,8 @@ export async function updateContato(id: string, payload: ContactUpdate): Promise
   if (payload.whatsapp !== undefined) updates.whatsapp = payload.whatsapp
   if (payload.tipo !== undefined) updates.tipo = payload.tipo
   if (payload.ativo !== undefined) updates.ativo = payload.ativo
-  if (payload.email !== undefined) updates.email = payload.email
-  if (payload.observacoes !== undefined) updates.observacoes = payload.observacoes
   if (Object.keys(updates).length === 0) {
-    const { data, error } = await supabase.from('contatos').select('id, nome, whatsapp, tipo, ativo, email, observacoes').eq('id', id).single()
+    const { data, error } = await supabase.from('contatos').select('id, nome, whatsapp, tipo, ativo').eq('id', id).single()
     if (error) throwSupabaseError(error, 'Nao foi possivel carregar contato.')
     return normalizeContact(data)
   }
@@ -194,7 +208,7 @@ export async function updateContato(id: string, payload: ContactUpdate): Promise
     .from('contatos')
     .update(updates)
     .eq('id', id)
-    .select('id, nome, whatsapp, tipo, ativo, email, observacoes')
+    .select('id, nome, whatsapp, tipo, ativo')
     .single()
   if (error) throwSupabaseError(error, 'Nao foi possivel atualizar contato.')
   return normalizeContact(data)
@@ -206,15 +220,19 @@ export async function deleteContato(id: string): Promise<void> {
 }
 
 export async function createFornecedor(input: { contato: ContactInput; fornecedor: FornecedorInput }): Promise<FornecedorRecord> {
-  const contato = await createContato({ ...input.contato, tipo: 'FORNECEDOR' })
+  const contato = await createContato({ ...input.contato, tipo: 'fornecedor' })
   const insert = {
     contato_id: contato.id,
-    categoria: input.fornecedor.categoria,
-    razao_social: input.fornecedor.razaoSocial ?? null,
+    nome: input.fornecedor.nome,
+    categoria: input.fornecedor.categoria ?? null,
+    nome_fantasia: input.fornecedor.nomeFantasia ?? null,
+    telefone_principal: input.fornecedor.telefonePrincipal ?? null,
+    email: input.fornecedor.email ?? null,
     cnpj: input.fornecedor.cnpj ?? null,
+    inscricao_estadual: input.fornecedor.inscricaoEstadual ?? null,
     cidade: input.fornecedor.cidade ?? null,
     estado: input.fornecedor.estado ?? null,
-    observacoes: input.fornecedor.observacoes ?? null,
+    condicoes_pagamento: input.fornecedor.condicoesPagamento ?? null,
     ativo: input.fornecedor.ativo ?? true,
   }
 
@@ -224,8 +242,8 @@ export async function createFornecedor(input: { contato: ContactInput; fornecedo
       .from('fornecedores')
       .insert(insert)
       .select(`
-        id, contatoId:contato_id, categoria, razaoSocial:razao_social, cnpj, cidade, estado, observacoes, ativo, created_at, updated_at,
-        contato:contatos ( id, nome, whatsapp, tipo, ativo, email, observacoes )
+        id, contatoId:contato_id, nome, nomeFantasia:nome_fantasia, categoria, telefonePrincipal:telefone_principal, email, cnpj, inscricaoEstadual:inscricao_estadual, cidade, estado, condicoesPagamento:condicoes_pagamento, ativo, created_at, updated_at,
+        contato:contatos ( id, nome, whatsapp, tipo, ativo )
       `)
       .single()
     if (error) throwSupabaseError(error, 'Nao foi possivel criar fornecedor.')
@@ -239,24 +257,28 @@ export async function createFornecedor(input: { contato: ContactInput; fornecedo
 }
 
 export async function updateFornecedor(id: string, contatoId: string, input: { contato: ContactUpdate; fornecedor: FornecedorInput }): Promise<FornecedorRecord> {
-  await updateContato(contatoId, { ...input.contato, tipo: input.contato.tipo ?? 'FORNECEDOR' })
+  await updateContato(contatoId, { ...input.contato, tipo: input.contato.tipo ?? 'fornecedor' })
   const updates: Record<string, unknown> = {
-    categoria: input.fornecedor.categoria,
+    nome: input.fornecedor.nome,
+    categoria: input.fornecedor.categoria ?? null,
+    nome_fantasia: input.fornecedor.nomeFantasia ?? null,
+    telefone_principal: input.fornecedor.telefonePrincipal ?? null,
+    email: input.fornecedor.email ?? null,
     ativo: input.fornecedor.ativo ?? true,
   }
-  updates.razao_social = input.fornecedor.razaoSocial ?? null
   updates.cnpj = input.fornecedor.cnpj ?? null
+  updates.inscricao_estadual = input.fornecedor.inscricaoEstadual ?? null
   updates.cidade = input.fornecedor.cidade ?? null
   updates.estado = input.fornecedor.estado ?? null
-  updates.observacoes = input.fornecedor.observacoes ?? null
+  updates.condicoes_pagamento = input.fornecedor.condicoesPagamento ?? null
 
   const { data, error } = await supabase
     .from('fornecedores')
     .update(updates)
     .eq('id', id)
     .select(`
-      id, contatoId:contato_id, categoria, razaoSocial:razao_social, cnpj, cidade, estado, observacoes, ativo, created_at, updated_at,
-      contato:contatos ( id, nome, whatsapp, tipo, ativo, email, observacoes )
+      id, contatoId:contato_id, nome, nomeFantasia:nome_fantasia, categoria, telefonePrincipal:telefone_principal, email, cnpj, inscricaoEstadual:inscricao_estadual, cidade, estado, condicoesPagamento:condicoes_pagamento, ativo, created_at, updated_at,
+      contato:contatos ( id, nome, whatsapp, tipo, ativo )
     `)
     .single()
   if (error) throwSupabaseError(error, 'Nao foi possivel atualizar fornecedor.')
@@ -269,55 +291,44 @@ export async function deleteFornecedor(id: string, contatoId: string): Promise<v
   await deleteContato(contatoId)
 }
 
-export async function createFiscal(input: { contato: ContactInput; fiscal: FiscalInput }): Promise<FiscalRecord> {
-  const contato = await createContato({ ...input.contato, tipo: 'FISCAL' })
+export async function createFiscal(input: { contatoId: string; fiscal: { nome: string; obraId?: string | null; ativo?: boolean } }): Promise<FiscalRecord> {
   const insert = {
-    contato_id: contato.id,
-    cargo: input.fiscal.cargo,
+    contato_id: input.contatoId,
+    nome: input.fiscal.nome,
     obra_id: input.fiscal.obraId ?? null,
-    registro_profissional: input.fiscal.registroProfissional ?? null,
-    especialidade: input.fiscal.especialidade ?? null,
+    ativo: input.fiscal.ativo ?? true,
   }
 
-  let inserted: any
-  try {
-    const { data, error } = await supabase
-      .from('fiscais')
-      .insert(insert)
-      .select(`
-        id, contatoId:contato_id, obraId:obra_id, cargo, registroProfissional:registro_profissional, especialidade,
-        contato:contatos ( id, nome, whatsapp, tipo, ativo, email, observacoes ),
-        obra:obras ( id, nome )
-      `)
-      .single()
-    if (error) throwSupabaseError(error, 'Nao foi possivel criar fiscal.')
-    inserted = data
-  } catch (err) {
-    await deleteContato(contato.id).catch(() => undefined)
-    throw mapSupabaseError(err, 'Nao foi possivel criar fiscal.')
-  }
-
-  return normalizeFiscal(inserted)
+  const { data, error } = await supabase
+    .from('fiscais')
+    .insert(insert)
+    .select(
+      `id, contatoId:contato_id, obraId:obra_id, nome, ativo,
+       contato:contatos ( id, nome, whatsapp, tipo, ativo ),
+       obra:obras ( id, nome )`
+    )
+    .single()
+  if (error) throwSupabaseError(error, 'Nao foi possivel criar fiscal.')
+  return normalizeFiscal(data)
 }
 
 export async function updateFiscal(id: string, contatoId: string, input: { contato: ContactUpdate; fiscal: FiscalInput }): Promise<FiscalRecord> {
-  await updateContato(contatoId, { ...input.contato, tipo: input.contato.tipo ?? 'FISCAL' })
+  await updateContato(contatoId, { ...input.contato, tipo: input.contato.tipo ?? 'fiscal' })
   const updates: Record<string, unknown> = {
-    cargo: input.fiscal.cargo,
-    obra_id: input.fiscal.obraId ?? null,
-    registro_profissional: input.fiscal.registroProfissional ?? null,
-    especialidade: input.fiscal.especialidade ?? null,
+    nome: (input as any).fiscal?.nome,
+    obra_id: (input as any).fiscal?.obraId ?? null,
+    ativo: (input as any).fiscal?.ativo ?? true,
   }
 
   const { data, error } = await supabase
     .from('fiscais')
     .update(updates)
     .eq('id', id)
-    .select(`
-      id, contatoId:contato_id, obraId:obra_id, cargo, registroProfissional:registro_profissional, especialidade,
-      contato:contatos ( id, nome, whatsapp, tipo, ativo, email, observacoes ),
-      obra:obras ( id, nome )
-    `)
+    .select(
+      `id, contatoId:contato_id, obraId:obra_id, nome, ativo,
+       contato:contatos ( id, nome, whatsapp, tipo, ativo ),
+       obra:obras ( id, nome )`
+    )
     .single()
   if (error) throwSupabaseError(error, 'Nao foi possivel atualizar fiscal.')
   return normalizeFiscal(data)

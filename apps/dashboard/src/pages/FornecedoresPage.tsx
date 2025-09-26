@@ -42,8 +42,16 @@ const fornecedorSchema = z.object({
     .max(120, 'E-mail excede o limite de 120 caracteres.')
     .email('E-mail invalido.')
     .or(z.literal('')),
-  categoria: z.string().trim().min(2, 'Informe a categoria do fornecedor.').max(80, 'Categoria muito longa.'),
-  razaoSocial: z.string().trim().max(140, 'Razao social excede o limite.').or(z.literal('')),
+  categoria: z
+    .string()
+    .trim()
+    .length(1, 'Categoria deve conter uma unica letra (A, B, C ou D).')
+    .regex(/^[ABCD]$/i, 'Categoria deve ser A, B, C ou D.'),
+  razaoSocial: z
+    .string()
+    .trim()
+    .min(3, 'Razao social deve ter ao menos 3 caracteres.')
+    .max(140, 'Razao social excede o limite.'),
   cnpj: z
     .string()
     .trim()
@@ -118,13 +126,13 @@ function FornecedoresPage() {
     mapRecordToForm: (record) => ({
       nome: record.contato.nome ?? '',
       whatsapp: normalizeWhatsapp(record.contato.whatsapp),
-      email: record.contato.email ?? '',
-      categoria: record.categoria ?? '',
-      razaoSocial: record.razaoSocial ?? '',
+      email: record.email ?? '',
+      categoria: (record.categoria ?? 'C').toUpperCase(),
+      razaoSocial: record.nome ?? '',
       cnpj: record.cnpj ? normalizeCnpj(record.cnpj) : '',
       cidade: record.cidade ?? '',
       estado: resolveEstado(record.estado ?? ''),
-      observacoes: record.observacoes ?? record.contato.observacoes ?? '',
+      observacoes: record.condicoesPagamento ?? '',
       ativo: Boolean(record.ativo && record.contato.ativo),
     }),
   })
@@ -132,8 +140,9 @@ function FornecedoresPage() {
   const deleteName = useMemo(() => {
     const alvo = deleteState.target
     if (!alvo) return ''
+    if (alvo.nome) return alvo.nome
     if (alvo.contato.nome) return alvo.contato.nome
-    if (alvo.razaoSocial) return alvo.razaoSocial
+    if (alvo.telefonePrincipal) return alvo.telefonePrincipal
     return alvo.contato.whatsapp
   }, [deleteState.target])
 
@@ -184,19 +193,21 @@ function FornecedoresPage() {
     setSaving(true)
     const contatoPayload = {
       nome: values.nome,
-      whatsapp: values.whatsapp,
+      whatsapp: normalizeWhatsapp(values.whatsapp),
       email: emptyToUndefined(values.email),
       observacoes: emptyToUndefined(values.observacoes),
-      tipo: 'FORNECEDOR' as const,
+      tipo: 'fornecedor' as const,
       ativo: values.ativo,
     }
     const fornecedorPayload = {
-      categoria: values.categoria,
-      razaoSocial: emptyToUndefined(values.razaoSocial),
-      cnpj: values.cnpj ? values.cnpj : undefined,
+      nome: values.razaoSocial.trim(),
+      categoria: values.categoria ? values.categoria.trim().charAt(0).toUpperCase() : undefined,
+      telefonePrincipal: normalizeWhatsapp(values.whatsapp),
+      email: emptyToUndefined(values.email),
+      cnpj: values.cnpj ? normalizeCnpj(values.cnpj) : undefined,
       cidade: emptyToUndefined(values.cidade),
-      estado: emptyToUndefined(values.estado),
-      observacoes: emptyToUndefined(values.observacoes),
+      estado: emptyToUndefined(values.estado ? values.estado.trim().toUpperCase() : undefined),
+      condicoesPagamento: emptyToUndefined(values.observacoes),
       ativo: values.ativo,
     }
 
@@ -208,23 +219,28 @@ function FornecedoresPage() {
             whatsapp: contatoPayload.whatsapp,
             email: emptyToNull(values.email),
             observacoes: emptyToNull(values.observacoes),
-            tipo: 'FORNECEDOR',
+            tipo: 'fornecedor',
             ativo: contatoPayload.ativo,
           },
           fornecedor: {
-            categoria: fornecedorPayload.categoria,
-            razaoSocial: emptyToNull(values.razaoSocial),
-            cnpj: values.cnpj ? values.cnpj : null,
-            cidade: emptyToNull(values.cidade),
-            estado: emptyToNull(values.estado),
-            observacoes: emptyToNull(values.observacoes),
+            nome: fornecedorPayload.nome,
+            categoria: fornecedorPayload.categoria ?? null,
+            telefonePrincipal: fornecedorPayload.telefonePrincipal ?? null,
+            email: fornecedorPayload.email ?? null,
+            cnpj: fornecedorPayload.cnpj ?? null,
+            cidade: fornecedorPayload.cidade ?? null,
+            estado: fornecedorPayload.estado ?? null,
+            condicoesPagamento: fornecedorPayload.condicoesPagamento ?? null,
             ativo: fornecedorPayload.ativo,
           },
         })
         setFornecedores((current) => current.map((item) => (item.id === updated.id ? updated : item)))
         setFeedback({ tone: 'success', message: 'Fornecedor atualizado com sucesso.' })
       } else {
-        const created = await createFornecedor({ contato: contatoPayload, fornecedor: fornecedorPayload })
+        const created = await createFornecedor({
+          contato: contatoPayload,
+          fornecedor: fornecedorPayload,
+        })
         setFornecedores((current) => [created, ...current])
         setFeedback({ tone: 'success', message: 'Fornecedor cadastrado com sucesso.' })
       }
@@ -630,54 +646,68 @@ function FornecedoresPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline/40">
-                  {fornecedores.map((fornecedor) => (
-                    <tr key={fornecedor.id} className="transition hover:bg-muted/40">
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="font-medium text-foreground">{fornecedor.contato.nome ?? 'Sem nome cadastrado'}</span>
-                          {fornecedor.razaoSocial ? (
-                            <span className="text-xs text-muted-foreground">{fornecedor.razaoSocial}</span>
-                          ) : null}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-muted-foreground">{formatWhatsapp(fornecedor.contato.whatsapp)}</td>
-                      <td className="px-6 py-4 text-muted-foreground">{fornecedor.categoria ?? '--'}</td>
-                      <td className="px-6 py-4 text-muted-foreground">{fornecedor.cnpj ? formatCnpj(fornecedor.cnpj) : '--'}</td>
-                      <td className="px-6 py-4">
-                        <Badge
-                          variant={fornecedor.ativo ? 'positive' : 'danger'}
-                          dataTestId={`badge-fornecedor-status-${fornecedor.id}`}
-                        >
-                          {fornecedor.ativo ? 'Ativo' : 'Inativo'}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="inline-flex items-center gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="secondary"
-                            dataTestId={`btn-editar-fornecedor-${fornecedor.id}`}
-                            onClick={() => {
-                              resetFeedback()
-                              openEdit(fornecedor)
-                            }}
+                  {fornecedores.map((fornecedor) => {
+                    const companyName = fornecedor.nome || fornecedor.contato.nome || 'Sem nome cadastrado'
+                    const secondaryLabel =
+                      fornecedor.nomeFantasia ??
+                      (fornecedor.contato.nome && fornecedor.contato.nome !== companyName ? fornecedor.contato.nome : null)
+                    const telefone = fornecedor.telefonePrincipal ?? fornecedor.contato.whatsapp
+                    return (
+                      <tr key={fornecedor.id} className="transition hover:bg-muted/40">
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-foreground">{companyName}</span>
+                            {secondaryLabel ? (
+                              <span className="text-xs text-muted-foreground">{secondaryLabel}</span>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-muted-foreground">
+                          {telefone ? formatWhatsapp(telefone) : '--'}
+                        </td>
+                        <td className="px-6 py-4 text-muted-foreground">
+                          {fornecedor.categoria ? fornecedor.categoria.toUpperCase() : '--'}
+                        </td>
+                        <td className="px-6 py-4 text-muted-foreground">
+                          {fornecedor.cnpj ? formatCnpj(fornecedor.cnpj) : '--'}
+                        </td>
+                        <td className="px-6 py-4">
+                          <Badge
+                            variant={fornecedor.ativo ? 'positive' : 'danger'}
+                            dataTestId={`badge-fornecedor-status-${fornecedor.id}`}
                           >
-                            Editar
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="danger"
-                            dataTestId={`btn-remover-fornecedor-${fornecedor.id}`}
-                            onClick={() => promptDelete(fornecedor)}
-                          >
-                            Remover
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            {fornecedor.ativo ? 'Ativo' : 'Inativo'}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="inline-flex items-center gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              dataTestId={`btn-editar-fornecedor-${fornecedor.id}`}
+                              onClick={() => {
+                                resetFeedback()
+                                openEdit(fornecedor)
+                              }}
+                            >
+                              Editar
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="danger"
+                              dataTestId={`btn-remover-fornecedor-${fornecedor.id}`}
+                              onClick={() => promptDelete(fornecedor)}
+                            >
+                              Remover
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+
                 </tbody>
               </table>
             </div>
@@ -705,4 +735,6 @@ function FornecedoresPage() {
 }
 
 export default FornecedoresPage
+
+
 

@@ -28,45 +28,54 @@ export const useAuthStore = create<AuthState>()(
       
       login: async (whatsapp, senha_login) => {
         try {
-          const isEmail = whatsapp.includes('@');
-          const isDigits = /^[0-9]+$/.test(whatsapp);
+          // 2) Normalizar telefone para formato internacional com +55
+          const onlyDigits = (whatsapp || '').replace(/\D+/g, '');
+          let normalizedPhone = onlyDigits;
+          if (normalizedPhone.startsWith('55')) {
+            normalizedPhone = `+${normalizedPhone}`;
+          } else if (!normalizedPhone.startsWith('+55')) {
+            normalizedPhone = `+55${normalizedPhone}`;
+          }
 
-          // Função auxiliar para mapear sessão/usuário
-          const applySession = (session: any, authUser: any) => {
-            if (!session || !authUser) {
-              throw new Error('Sessão inválida após login');
-            }
-            const mappedUser: User = {
-              id: authUser.id,
-              nome: (authUser.user_metadata as any)?.nome,
-              cargo: (authUser.user_metadata as any)?.cargo,
-              whatsapp: authUser.phone ?? whatsapp,
-              email: authUser.email ?? undefined,
-              permissions: (authUser.user_metadata as any)?.permissions,
-            };
-            set({ user: mappedUser, token: session.access_token });
+          // 3) Consultar/Upsert na tabela de usuários do dashboard
+          //   Tabela: usuarios_dashboard (whatsapp UNIQUE, senha_hash, ativo)
+          const { data: existing, error: queryError } = await supabase
+            .from('usuarios_dashboard')
+            .select('id, whatsapp, ativo, senha')
+            .eq('whatsapp', normalizedPhone)
+            .maybeSingle();
+
+          if (queryError && queryError.code !== 'PGRST116') {
+            // Erro inesperado ao consultar
+            throw new Error(queryError.message || 'Falha ao consultar usuário');
+          }
+
+          let usuario = existing as any | null;
+
+          if (!usuario) {
+            throw new Error('Usuário não encontrado. Solicite acesso ao administrador.');
+          }
+
+          if (usuario && usuario.ativo === false) {
+            throw new Error('Usuário inativo. Contate o administrador.');
+          }
+
+          // 4) Verificar senha simples
+          if (!usuario || typeof usuario.senha !== 'string' || usuario.senha !== senha_login) {
+            throw new Error('Credenciais inválidas. Verifique WhatsApp e senha.');
+          }
+
+          // 5) Criar sessão simples no client
+          const mappedUser: User = {
+            id: usuario.id,
+            nome: undefined,
+            cargo: 'usuario_dashboard',
+            whatsapp: usuario.whatsapp,
+            email: undefined,
+            permissions: undefined,
           };
 
-          if (isEmail) {
-            const { data, error } = await supabase.auth.signInWithPassword({ email: whatsapp, password: senha_login });
-            if (error) throw new Error(error.message || 'Falha no login (email)');
-            applySession(data.session, data.user);
-            return;
-          }
-
-          // Se for apenas dígitos, tratamos como username => email pseudo "<login>@login.local"
-          if (isDigits) {
-            const pseudoEmail = `${whatsapp}@login.local`;
-            const { data, error } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password: senha_login });
-            if (error) throw new Error(error.message || 'Falha no login (username)');
-            applySession(data.session, data.user);
-            return;
-          }
-
-          // Caso contrário, como fallback final tenta email com o valor bruto
-          const { data, error } = await supabase.auth.signInWithPassword({ email: whatsapp, password: senha_login });
-          if (error) throw new Error(error.message || 'Falha no login (fallback geral)');
-          applySession(data.session, data.user);
+          set({ user: mappedUser, token: 'simple-session' });
         } catch (error) {
           console.error('Erro no login:', error);
           set({ user: null, token: null });

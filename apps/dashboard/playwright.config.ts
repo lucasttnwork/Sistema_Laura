@@ -1,8 +1,13 @@
 import { defineConfig, devices } from '@playwright/test'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 /**
  * @see https://playwright.dev/docs/test-configuration
  */
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+
 const baseURL = process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:3001'
 const shouldSkipWebServer = process.env.PLAYWRIGHT_SKIP_WEB_SERVER === '1'
 
@@ -69,6 +74,6 @@ export default defineConfig({
         port: 3001,
         reuseExistingServer: !process.env.CI,
         timeout: 120 * 1000,
-        cwd: __dirname,
+        cwd: resolve(__dirname),
       },
 })

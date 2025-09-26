@@ -43,7 +43,7 @@ const LoginPage = () => {
           <Heading level={1} size="lg" dataTestId="login-heading">
             Login - Sistema Laura
           </Heading>
-          <p className="text-sm text-muted-foreground">Informe suas credenciais para acessar o dashboard.</p>
+          <p className="text-sm text-muted-foreground">Informe seu WhatsApp (somente números) e a senha padrão "123".</p>
         </div>
         <Card className="shadow-medium">
           <CardHeader>
@@ -59,7 +59,7 @@ const LoginPage = () => {
                   id="whatsapp"
                   type="tel"
                   dataTestId="input-login-whatsapp"
-                  placeholder="(11) 90000-0000"
+                  placeholder="11900000000"
                   {...register('whatsapp', { required: 'Numero do WhatsApp e obrigatorio' })}
                 />
                 {errors.whatsapp ? (
